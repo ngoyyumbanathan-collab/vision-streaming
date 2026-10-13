@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vision">
+<meta name="theme-color" content="#070a14">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Vision Streaming</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Unbounded:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070a14; --s1:#0f1424; --s2:#171d33; --line:#222a44;
+  --tx:#f4f6fb; --mut:#8e97b3;
+  --netflix:#e50914; --prime:#1a98ff; --crunchy:#f47521;
+  --ok:#35d487; --warn:#ffb21f; --bad:#ff4a5c;
+  --grad:linear-gradient(110deg,#e50914,#0a3a8a);
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  --disp:'Unbounded',system-ui,sans-serif; --svc:#222a44;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;color:var(--tx);font:500 16px/1.4 'Figtree',system-ui,-apple-system,sans-serif;
+  background:radial-gradient(120% 40% at 0% 0%,rgba(229,9,20,.16),transparent 60%),radial-gradient(120% 40% at 100% 0%,rgba(10,90,200,.2),transparent 60%),var(--bg);
+  background-repeat:no-repeat;padding-top:var(--sat)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+a{color:inherit;text-decoration:none}
+
+/* Marque */
+.logo{font-family:var(--disp);font-weight:800;font-size:19px;letter-spacing:.02em;display:flex;align-items:baseline;gap:6px;font-style:italic}
+.logo small{font-family:'Figtree';font-weight:600;font-size:13px;color:var(--mut);font-style:normal;letter-spacing:0}
+.boot{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:100}
+
+/* Connexion */
+.login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:28px;max-width:440px;margin:0 auto;gap:26px}
+.login .logo{font-size:34px}
+.login p{margin:0;color:var(--mut)}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-size:13px;font-weight:600;color:var(--mut)}
+input,select,textarea{width:100%;background:var(--s2);border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;outline:none;font-size:16px}
+input:focus,select:focus,textarea:focus{border-color:#4b6bff}
+textarea{min-height:130px;resize:vertical;line-height:1.45}
+.err{color:var(--bad);font-size:14px;min-height:20px;margin:0 0 8px}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 16px;border-radius:14px;font-weight:700;background:var(--s2);border:1.5px solid var(--line)}
+.btn.primary{background:var(--grad);border-color:transparent}
+.btn.danger{color:var(--bad);border-color:rgba(255,74,92,.4);background:transparent}
+.btn.small{width:auto;padding:9px 13px;font-size:14px;border-radius:11px}
+
+/* Structure */
+header.top{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 6px;max-width:600px;margin:0 auto}
+main{max-width:600px;margin:0 auto;padding:6px 16px calc(150px + var(--sab))}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:8px 12px calc(8px + var(--sab));background:rgba(7,10,20,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);z-index:20}
+.tabs .in{display:flex;width:100%;max-width:600px}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--mut);font-size:12px;font-weight:600}
+.tab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tab.on{color:var(--tx)}
+.fab{position:fixed;right:18px;bottom:calc(84px + var(--sab));width:58px;height:58px;border-radius:50%;background:var(--grad);display:grid;place-items:center;box-shadow:0 10px 28px rgba(10,58,138,.55);z-index:21}
+.fab svg{width:26px;height:26px;stroke:#fff;stroke-width:2.6;stroke-linecap:round}
+
+/* Indicateurs et filtres */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 14px}
+.stat{text-align:left;padding:12px;border-radius:14px;background:var(--s1);border:1.5px solid var(--line)}
+.stat.on{border-color:#4b6bff}
+.stat b{display:block;font-family:var(--disp);font-size:24px;font-weight:700;line-height:1.1}
+.stat span{font-size:12.5px;color:var(--mut);font-weight:600}
+.stat.warn b{color:var(--warn)} .stat.bad b{color:var(--bad)} .stat.ok b{color:var(--ok)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:8px 14px;border-radius:99px;background:var(--s1);border:1.5px solid var(--line);font-size:14px;font-weight:600;color:var(--mut)}
+.chip.on{color:var(--tx);border-color:transparent;background:var(--s2);box-shadow:inset 0 0 0 1.5px #4b6bff}
+.chip i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;background:var(--svc)}
+.empty{text-align:center;color:var(--mut);padding:44px 20px}
+
+/* Lignes d'abonnement : chaque service garde sa couleur */
+.row{position:relative;display:flex;align-items:center;gap:12px;padding:12px 12px 12px 18px;margin-bottom:9px;background:var(--s1);border-radius:16px;overflow:hidden;cursor:pointer}
+.row::before,.sub::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--svc)}
+.days{width:62px;flex:none;text-align:center}
+.days b{display:block;font-family:var(--disp);font-size:26px;font-weight:700;line-height:1}
+.days span{font-size:11.5px;color:var(--mut);font-weight:600}
+.days.warn b{color:var(--warn)} .days.bad b{color:var(--bad)}
+.row-main{flex:1;min-width:0}
+.row-main strong{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin-top:4px;font-size:13px;color:var(--mut)}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;color:#fff;background:var(--svc)}
+.wa{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#1fa855}
+.wa svg{width:22px;height:22px;fill:#fff}
+.wa.off{background:var(--s2);opacity:.5;pointer-events:none}
+.client-line{display:flex;align-items:center;gap:12px;padding:13px 14px;margin-bottom:9px;background:var(--s1);border-radius:16px;cursor:pointer}
+.client-line .main{flex:1;min-width:0}
+.client-line strong{display:block;font-size:17px}
+.client-line small{color:var(--mut);font-size:13px}
+.dots{display:flex;gap:5px}
+.dots i{width:12px;height:12px;border-radius:50%;background:var(--svc)}
+
+/* Fiche client */
+.page{position:fixed;inset:0;background:var(--bg);z-index:30;overflow-y:auto;padding:calc(var(--sat) + 8px) 0 calc(40px + var(--sab))}
+.page .wrap{max-width:600px;margin:0 auto;padding:0 16px}
+.back{display:flex;align-items:center;gap:6px;color:var(--mut);font-weight:600;padding:10px 0}
+.back svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.who h1{margin:4px 0 2px;font-family:var(--disp);font-size:26px;font-weight:700;line-height:1.15}
+.who p{margin:0;color:var(--mut)}
+.actions{display:flex;gap:8px;margin:16px 0 8px;flex-wrap:wrap}
+.total{display:flex;gap:18px;margin:6px 0 4px;color:var(--mut);font-size:14px}
+.total b{color:var(--tx)}
+h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
+.sub{position:relative;padding:14px 14px 14px 20px;margin-bottom:10px;background:var(--s1);border-radius:16px;overflow:hidden}
+.sub .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pill{font-size:12.5px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--s2)}
+.pill.warn{color:var(--warn);background:rgba(255,178,31,.12)} .pill.bad{color:var(--bad);background:rgba(255,74,92,.12)} .pill.ok{color:var(--ok);background:rgba(53,212,135,.12)}
+.sub .dates{font-size:17px;font-weight:700;margin:10px 0 2px}
+.sub .info{display:flex;flex-wrap:wrap;gap:2px 12px;color:var(--mut);font-size:14px}
+.sub .info .unpaid{color:var(--bad);font-weight:700}
+.sub .acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.sub.old{opacity:.78}
+
+/* Feuille de saisie */
+.sheetwrap{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+.sheet{position:relative;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;background:var(--s1);border-radius:24px 24px 0 0;padding:18px 18px calc(24px + var(--sab));animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}}
+.sheet h3{margin:0 0 16px;font-family:var(--disp);font-size:20px;font-weight:700}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.locked{padding:13px 14px;border-radius:12px;background:var(--s2);font-weight:700}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.tile{position:relative;text-align:left;padding:14px;border-radius:16px;color:#fff;background:var(--svc);opacity:.5;border:2px solid transparent;display:flex;flex-direction:column;gap:2px}
+.tile b{font-size:15.5px;font-weight:700;line-height:1.2}
+.tile span{font-size:13.5px;opacity:.92;font-weight:600}
+.tile.on{opacity:1;border-color:#fff}
+.tile.on::after{content:"✓";position:absolute;top:8px;right:11px;font-weight:800}
+.segs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.seg{padding:11px 6px;border-radius:12px;background:var(--s2);border:1.5px solid var(--line);font-weight:700;display:flex;flex-direction:column;align-items:center}
+.seg small{font-weight:500;color:var(--mut);font-size:12px}
+.seg.on{border-color:#4b6bff;box-shadow:inset 0 0 0 1px #4b6bff}
+.wrapchips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.hint{font-size:13px;color:var(--mut);margin-top:2px}
+.endbox{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-radius:12px;background:var(--s2);margin-bottom:16px}
+.endbox b{font-family:var(--disp);font-size:15px}
+.check{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-weight:600}
+.check input{width:22px;height:22px;padding:0}
+.stack{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+
+/* Réglages */
+.panel{background:var(--s1);border-radius:16px;padding:16px;margin-bottom:14px}
+.panel h3{margin:0 0 6px;font-size:17px}
+.panel p{margin:0 0 12px;color:var(--mut);font-size:14.5px}
+.state{font-weight:700;margin-bottom:12px}
+.state.ok{color:var(--ok)} .state.bad{color:var(--warn)}
+
+#toast{position:fixed;left:50%;bottom:calc(96px + var(--sab));transform:translateX(-50%);background:#fff;color:#0b0d14;padding:11px 18px;border-radius:99px;font-weight:700;font-size:14.5px;z-index:80;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="boot" class="boot"><div class="logo">VISION</div></div>
+
+<!-- Connexion -->
+<section id="login" class="login" hidden>
+  <div class="logo">VISION<small>streaming</small></div>
+  <p>Connecte-toi pour gérer tes abonnements.</p>
+  <form id="loginForm" autocomplete="on">
+    <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="username" required></div>
+    <div class="field"><label for="pass">Mot de passe</label><input id="pass" type="password" autocomplete="current-password" required></div>
+    <p class="err" id="loginErr"></p>
+    <button class="btn primary" type="submit">Se connecter</button>
+  </form>
+</section>
+
+<!-- Application -->
+<div id="app" hidden>
+  <header class="top"><div class="logo">VISION<small>streaming</small></div></header>
+  <main id="view"></main>
+
+  <button class="fab" data-act="new-sub" aria-label="Nouvel abonnement"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+
+  <nav class="tabs"><div class="in">
+    <button class="tab on" data-act="tab" data-tab="subs"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg>Abonnements</button>
+    <button class="tab" data-act="tab" data-tab="clients"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 5a3.2 3.2 0 0 1 0 6M18.5 14.8c1.7.7 2.7 2.3 3 5.2"/></svg>Clients</button>
+    <button class="tab" data-act="tab" data-tab="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Réglages</button>
+  </div></nav>
+
+  <div id="detail" class="page" hidden></div>
+  <div id="sheet" class="sheetwrap" hidden><div class="backdrop" data-act="close-sheet"></div><div class="sheet" id="sheetBody"></div></div>
+</div>
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+/* ============ Réglages métier (modifiables) ============ */
+const DEFAULT_CC = '243'; // indicatif pays ajouté aux numéros locaux (RDC)
+const SERVICES = {
+  netflix:     { label:'Netflix',                bg:'linear-gradient(135deg,#e50914,#7d0610)', dot:'#e50914' },
+  prime:       { label:'Prime Video',            bg:'linear-gradient(135deg,#1fb4f0,#0a4aa6)', dot:'#1a98ff' },
+  crunchyroll: { label:'Crunchyroll',            bg:'linear-gradient(135deg,#f47521,#ff4a3a)', dot:'#f47521' },
+  combo:       { label:'Combo Netflix + Prime',  bg:'linear-gradient(110deg,#e50914,#0a3a8a)', dot:'#8d2a6b' }
+};
+const PRICES = {
+  netflix:     { 1:12000, 3:36000,  6:72000 },
+  prime:       { 1:9000,  3:27000,  6:54000 },
+  crunchyroll: { 1:12000, 3:36000,  6:72000 },
+  combo:       { 1:18000, 3:54000,  6:108000 }
+};
+const DAYS = { 1:30, 3:90, 6:180 };
+const METHODS = ['Illicocash','Orange Money','Airtel Money','Cash','Autre'];
+const DEFAULT_TEMPLATE = "Bonjour {nom} 👋\nVotre abonnement {service} chez Vision Streaming {quand} (le {date}).\nSouhaitez-vous le renouveler ? Merci !";
+
+/* ============ Firebase ============ */
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const TS = () => firebase.firestore.FieldValue.serverTimestamp();
+let messaging = null;
+try { if (firebase.messaging.isSupported()) messaging = firebase.messaging(); } catch (e) { console.warn('Messaging indisponible', e); }
+
+/* ============ Utilitaires ============ */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = (n) => String(n).padStart(2, '0');
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const toUTC = (s) => Date.parse(s + 'T00:00:00Z');
+const addDays = (s, n) => new Date(toUTC(s) + n * 86400000).toISOString().slice(0, 10);
+const diffDays = (a, b) => Math.round((toUTC(b) - toUTC(a)) / 86400000);
+const fmtDate = (s) => new Date(toUTC(s)).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric', timeZone:'UTC' });
+const money = (n) => (Number(n) || 0).toLocaleString('fr-FR') + ' Fc';
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const standalone = () => navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ============ État ============ */
+const ui = { tab:'subs', status:'all', service:'all', q:'', detail:null };
+let clients = [], subs = [], template = DEFAULT_TEMPLATE;
+let loaded = { c:false, s:false };
+let unsubs = [];
+let form = null, cform = null;
+const params = new URLSearchParams(location.search);
+if (params.get('filter') === 'soon') ui.status = 'soon';
+
+const clientById = (id) => clients.find((c) => c.id === id);
+
+function enrich() {
+  const latest = {};
+  subs.forEach((s) => { const k = s.clientId + '|' + s.service; if (!latest[k] || s.endDate > latest[k]) latest[k] = s.endDate; });
+  const t = todayStr();
+  subs.forEach((s) => { s._current = s.endDate === latest[s.clientId + '|' + s.service]; s._left = diffDays(t, s.endDate); });
+}
+const statusOf = (s) => s._left < 0 ? 'expired' : s._left <= 3 ? 'soon' : 'active';
+const isVisible = (s) => s._current && !s.archived;
+
+function leftLabel(s) {
+  const d = s._left;
+  if (d < 0) return d === -1 ? 'Expiré hier' : `Expiré depuis ${-d} j`;
+  if (d === 0) return "Finit aujourd'hui";
+  if (d === 1) return 'Finit demain';
+  return `Encore ${d} jours`;
+}
+
+/* ============ WhatsApp ============ */
+function waNumber(p) {
+  let d = String(p || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  else if (d.startsWith('0')) d = DEFAULT_CC + d.slice(1);
+  else if (d.length === 9) d = DEFAULT_CC + d;
+  return d;
+}
+function fillTemplate(tpl, s) {
+  const d = s._left;
+  const quand = d < 0 ? (d === -1 ? "s'est terminé hier" : `s'est terminé il y a ${-d} jours`)
+    : d === 0 ? "se termine aujourd'hui" : d === 1 ? 'se termine demain' : `se termine dans ${d} jours`;
+  return tpl.replaceAll('{nom}', s.clientName).replaceAll('{service}', (SERVICES[s.service] || {}).label || s.service)
+    .replaceAll('{date}', fmtDate(s.endDate)).replaceAll('{quand}', quand);
+}
+function waHref(s) {
+  const c = clientById(s.clientId);
+  if (!c || !c.phone) return '';
+  return `https://wa.me/${waNumber(c.phone)}?text=${encodeURIComponent(fillTemplate(template, s))}`;
+}
+const WA_ICON = '<svg viewBox="0 0 24 24"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.9L2 22l5.25-1.5A9.9 9.9 0 1 0 12.04 2zm5.8 14.1c-.25.7-1.45 1.35-2 1.4-.5.05-1.1.2-3.6-.8-3-1.2-4.9-4.2-5.05-4.4-.15-.2-1.2-1.6-1.2-3s.75-2.1 1-2.4c.25-.3.55-.35.75-.35h.55c.18 0 .42-.07.65.5.25.6.85 2.05.9 2.2.08.15.12.33.02.52-.1.2-.15.32-.3.5l-.45.5c-.15.15-.3.3-.13.6.17.3.78 1.28 1.68 2.07 1.15 1 2.12 1.32 2.42 1.47.3.15.47.12.65-.07.18-.2.75-.88.95-1.18.2-.3.4-.25.68-.15.28.1 1.75.83 2.05.98.3.15.5.22.57.35.08.12.08.72-.17 1.42z"/></svg>';
+const waBtn = (s) => { const h = waHref(s); return h ? `<a class="wa" href="${h}" target="_blank" rel="noopener" aria-label="Écrire sur WhatsApp">${WA_ICON}</a>` : `<span class="wa off">${WA_ICON}</span>`; };
+
+/* ============ Vues ============ */
+function render() {
+  if (!auth.currentUser) return;
+  if (!(loaded.c && loaded.s)) { $('#view').innerHTML = '<div class="empty">Chargement…</div>'; return; }
+  enrich();
+  const searching = document.activeElement && document.activeElement.id === 'q';
+  if (searching && ui.tab === 'clients') { $('#clist').innerHTML = clientListHTML(); }
+  else $('#view').innerHTML = ui.tab === 'subs' ? viewSubs() : ui.tab === 'clients' ? viewClients() : viewSettings();
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === ui.tab));
+  $('.fab').hidden = ui.tab === 'settings';
+  if (ui.detail) renderDetail(); else $('#detail').hidden = true;
+}
+
+function subRow(s) {
+  const sv = SERVICES[s.service] || SERVICES.netflix, st = statusOf(s);
+  const n = Math.abs(s._left);
+  const sub = s._left < 0 ? 'expiré' : s._left === 0 ? "aujourd'hui" : s._left === 1 ? 'jour' : 'jours';
+  const cls = st === 'expired' ? 'bad' : st === 'soon' ? 'warn' : '';
+  return `<div class="row" style="--svc:${sv.bg}" data-act="open-client" data-id="${s.clientId}">
+    <div class="days ${cls}"><b>${s._left < 0 ? '−' + n : s._left === 0 ? '0' : n}</b><span>${sub}</span></div>
+    <div class="row-main"><strong>${esc(s.clientName)}</strong>
+      <div class="meta"><span class="badge" style="--svc:${sv.bg}">${sv.label}</span><span>Fin le ${fmtDate(s.endDate)}</span></div></div>
+    ${waBtn(s)}</div>`;
+}
+
+function viewSubs() {
+  const all = subs.filter(isVisible);
+  const n = { soon:0, expired:0, active:0 };
+  all.forEach((s) => n[statusOf(s)]++);
+  let list = all.filter((s) => (ui.status === 'all' || statusOf(s) === ui.status) && (ui.service === 'all' || s.service === ui.service));
+  list.sort((a, b) => a.endDate.localeCompare(b.endDate) || a.clientName.localeCompare(b.clientName));
+  const stat = (k, cls, label) => `<button class="stat ${cls} ${ui.status === k ? 'on' : ''}" data-act="status" data-v="${ui.status === k ? 'all' : k}"><b>${n[k]}</b><span>${label}</span></button>`;
+  const chip = (k, label, dot) => `<button class="chip ${ui.service === k ? 'on' : ''}" data-act="service" data-v="${k}">${dot ? `<i style="background:${dot}"></i>` : ''}${label}</button>`;
+  return `<div class="stats">${stat('soon','warn','Finissent bientôt')}${stat('expired','bad','Expirés')}${stat('active','ok','En cours')}</div>
+    <div class="chips">${chip('all','Tous')}${Object.entries(SERVICES).map(([k, v]) => chip(k, v.label.replace('Combo Netflix + Prime','Combo'), v.bg)).join('')}</div>
+    ${list.length ? list.map(subRow).join('') : `<div class="empty">${all.length ? 'Aucun abonnement dans ce filtre.' : 'Aucun abonnement pour le moment.<br>Appuie sur + pour ajouter le premier.'}</div>`}`;
+}
+
+function clientListHTML() {
+  const q = ui.q.trim().toLowerCase();
+  const list = clients.filter((c) => !q || c.name.toLowerCase().includes(q) || String(c.phone || '').includes(q)).sort((a, b) => a.name.localeCompare(b.name));
+  if (!list.length) return `<div class="empty">${clients.length ? 'Aucun client trouvé.' : 'Aucun client pour le moment.'}</div>`;
+  return list.map((c) => {
+    const cur = subs.filter((s) => s.clientId === c.id && isVisible(s));
+    const dots = cur.map((s) => `<i style="background:${SERVICES[s.service].bg}" title="${SERVICES[s.service].label}"></i>`).join('');
+    const total = subs.filter((s) => s.clientId === c.id).length;
+    return `<div class="client-line" data-act="open-client" data-id="${c.id}"><div class="main"><strong>${esc(c.name)}</strong><small>${esc(c.phone || 'Sans numéro')} • ${total} abonnement${total > 1 ? 's' : ''} au total</small></div><div class="dots">${dots}</div></div>`;
+  }).join('');
+}
+function viewClients() {
+  return `<div class="field" style="margin-top:10px"><input id="q" data-f="q" type="search" placeholder="Chercher un nom ou un numéro" value="${esc(ui.q)}"></div>
+    <button class="btn small" style="margin-bottom:14px" data-act="new-client">Ajouter un client</button>
+    <div id="clist">${clientListHTML()}</div>`;
+}
+
+function subCard(s, old) {
+  const sv = SERVICES[s.service] || SERVICES.netflix, st = statusOf(s);
+  const cur = s._current;
+  const pill = !cur ? '<span class="pill">Renouvelé</span>' : s.archived ? '<span class="pill">Archivé</span>'
+    : `<span class="pill ${st === 'expired' ? 'bad' : st === 'soon' ? 'warn' : 'ok'}">${leftLabel(s)}</span>`;
+  return `<div class="sub ${old ? 'old' : ''}" style="--svc:${sv.bg}">
+    <div class="top"><span class="badge" style="--svc:${sv.bg}">${sv.label}</span>${pill}</div>
+    <div class="dates">${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}</div>
+    <div class="info"><span>${s.months} mois</span><span>${money(s.price)}</span><span>${esc(s.method || '')}</span>${s.paid === false ? '<span class="unpaid">Non payé</span>' : ''}</div>
+    ${s.note ? `<div class="info" style="margin-top:4px"><span>${esc(s.note)}</span></div>` : ''}
+    <div class="acts">
+      ${cur ? `<button class="btn small primary" data-act="renew-sub" data-sid="${s.id}">Renouveler</button>` : ''}
+      ${cur && !s.archived ? waBtn(s).replace('class="wa"', 'class="wa" style="width:40px;height:40px"') : ''}
+      <button class="btn small" data-act="edit-sub" data-sid="${s.id}">Modifier</button>
+      ${cur && !s.archived && s._left < 0 ? `<button class="btn small" data-act="archive-sub" data-sid="${s.id}">Archiver</button>` : ''}
+    </div></div>`;
+}
+
+function renderDetail() {
+  const c = clientById(ui.detail);
+  if (!c) { ui.detail = null; $('#detail').hidden = true; return; }
+  const list = subs.filter((s) => s.clientId === c.id).sort((a, b) => b.endDate.localeCompare(a.endDate));
+  const current = list.filter(isVisible), history = list.filter((s) => !isVisible(s));
+  const spent = list.filter((s) => s.paid !== false).reduce((a, s) => a + (Number(s.price) || 0), 0);
+  const phoneLink = c.phone ? `https://wa.me/${waNumber(c.phone)}` : '';
+  const el = $('#detail'), keep = el.scrollTop;
+  el.innerHTML = `<div class="wrap">
+    <button class="back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>Retour</button>
+    <div class="who"><h1>${esc(c.name)}</h1><p>${esc(c.phone || 'Sans numéro')}</p>${c.note ? `<p>${esc(c.note)}</p>` : ''}</div>
+    <div class="total"><span><b>${list.length}</b> abonnement${list.length > 1 ? 's' : ''}</span><span><b>${money(spent)}</b> payés au total</span></div>
+    <div class="actions">
+      <button class="btn small primary" data-act="new-sub">Ajouter un abonnement</button>
+      ${phoneLink ? `<a class="btn small" href="${phoneLink}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+      <button class="btn small" data-act="edit-client" data-id="${c.id}">Modifier</button>
+    </div>
+    <h2>En cours</h2>
+    ${current.length ? current.map((s) => subCard(s, false)).join('') : '<div class="empty" style="padding:18px">Aucun abonnement en cours.</div>'}
+    <h2>Historique</h2>
+    ${history.length ? history.map((s) => subCard(s, true)).join('') : '<div class="empty" style="padding:18px">Pas encore d\'ancien abonnement.</div>'}
+  </div>`;
+  el.hidden = false; el.scrollTop = keep;
+}
+
+function notifState() {
+  if (!('Notification' in window)) {
+    return { ok:false, txt: isIOS && !standalone() ? "Ajoute d'abord l'app à l'écran d'accueil (Partager, puis Sur l'écran d'accueil) et ouvre-la depuis son icône." : "Ce navigateur ne gère pas les notifications." };
+  }
+  if (Notification.permission === 'denied') return { ok:false, txt:"Refusées. Va dans Réglages de l'iPhone, Notifications, Vision, pour les autoriser." };
+  if (Notification.permission === 'granted' && localStorage.getItem('fcm')) return { ok:true, txt:'Activées sur cet appareil ✓' };
+  return { ok:false, txt:"Pas encore activées sur cet appareil." };
+}
+function viewSettings() {
+  const ns = notifState();
+  return `<div class="panel" style="margin-top:10px"><h3>Notifications</h3>
+      <p>Chaque matin vers 7h, tu reçois un rappel pour les abonnements qui finissent demain ou aujourd'hui.</p>
+      <div class="state ${ns.ok ? 'ok' : 'bad'}">${ns.txt}</div>
+      <button class="btn primary" data-act="enable-notif">${ns.ok ? 'Réactiver sur cet appareil' : 'Activer les notifications'}</button></div>
+    <div class="panel"><h3>Message WhatsApp</h3>
+      <p>Texte envoyé avec le bouton WhatsApp. Variables : {nom} {service} {date} {quand}</p>
+      <textarea id="tpl">${esc(template)}</textarea>
+      <div class="stack"><button class="btn" data-act="save-tpl">Enregistrer le message</button>
+      <button class="btn small" style="align-self:flex-start" data-act="reset-tpl">Remettre le message d'origine</button></div></div>
+    <div class="panel"><h3>Compte</h3><p>${esc(auth.currentUser.email)}</p><button class="btn danger" data-act="logout">Se déconnecter</button></div>`;
+}
+
+/* ============ Feuille d'abonnement ============ */
+function showSheet(html) {
+  const b = $('#sheetBody'), st = b.scrollTop;
+  b.innerHTML = html; $('#sheet').hidden = false; b.scrollTop = st;
+}
+function closeSheet() { $('#sheet').hidden = true; form = null; cform = null; }
+
+function openSubForm(o = {}) {
+  const b = o.sub;
+  form = b ? { id:b.id, clientId:b.clientId, service:b.service, months:Number(b.months), price:b.price, priceTouched:true, method:b.method || 'Cash', paid:b.paid !== false, start:b.startDate, note:b.note || '', lock:true }
+    : { id:null, clientId:o.clientId || '', service:o.service || 'netflix', months:o.months || 1, price:'', priceTouched:false, method:o.method || 'Orange Money', paid:true, start:o.start || todayStr(), note:o.note || '', lock:!!o.clientId, newName:'', newPhone:'' };
+  if (!form.priceTouched) form.price = PRICES[form.service][form.months];
+  showSheet(subFormHTML());
+}
+function subFormHTML() {
+  const f = form, std = PRICES[f.service][f.months];
+  const end = addDays(f.start || todayStr(), DAYS[f.months]);
+  const c = clientById(f.clientId);
+  const clientBlock = f.lock
+    ? `<div class="field"><label>Client</label><div class="locked">${esc(c ? c.name : '')}</div></div>`
+    : `<div class="field"><label>Client</label><select data-f="clientId"><option value="">Choisir un client…</option><option value="__new" ${f.clientId === '__new' ? 'selected' : ''}>➕ Nouveau client</option>${[...clients].sort((a, b) => a.name.localeCompare(b.name)).map((x) => `<option value="${x.id}" ${x.id === f.clientId ? 'selected' : ''}>${esc(x.name)}${x.phone ? ' (' + esc(x.phone) + ')' : ''}</option>`).join('')}</select></div>`
+      + (f.clientId === '__new' ? `<div class="two"><div class="field"><label>Nom</label><input data-f="newName" value="${esc(f.newName)}" placeholder="Marie K." autocomplete="off"></div><div class="field"><label>Numéro WhatsApp</label><input data-f="newPhone" type="tel" value="${esc(f.newPhone)}" placeholder="081 234 5678"></div></div>` : '');
+  const tiles = Object.entries(SERVICES).map(([k, v]) => `<button class="tile ${f.service === k ? 'on' : ''}" style="--svc:${v.bg}" data-act="pick-service" data-v="${k}"><b>${v.label}</b><span>${money(PRICES[k][f.months])}</span></button>`).join('');
+  const segs = [1, 3, 6].map((m) => `<button class="seg ${f.months === m ? 'on' : ''}" data-act="pick-months" data-v="${m}">${m} mois<small>${DAYS[m]} jours</small></button>`).join('');
+  const methods = METHODS.map((m) => `<button class="chip ${f.method === m ? 'on' : ''}" data-act="pick-method" data-v="${m}">${m}</button>`).join('');
+  return `<h3>${f.id ? "Modifier l'abonnement" : 'Nouvel abonnement'}</h3>
+    ${clientBlock}
+    <div class="field"><label>Service</label></div><div class="tiles">${tiles}</div>
+    <div class="field"><label>Durée</label></div><div class="segs">${segs}</div>
+    <div class="field"><label>Prix payé</label><input data-f="price" type="number" inputmode="numeric" min="0" value="${esc(f.price)}"><span class="hint">Tarif standard : ${money(std)}</span></div>
+    <div class="field"><label>Moyen de paiement</label></div><div class="wrapchips">${methods}</div>
+    <label class="check"><input type="checkbox" data-f="paid" ${f.paid ? 'checked' : ''}>Payé</label>
+    <div class="field"><label>Début</label><input data-f="start" type="date" value="${esc(f.start)}"></div>
+    <div class="endbox"><span>Fin de l'abonnement</span><b id="endLabel">${fmtDate(end)}</b></div>
+    <div class="field"><label>Note (profil, email du compte…)</label><input data-f="note" value="${esc(f.note)}" autocomplete="off"></div>
+    <div class="stack"><button class="btn primary" data-act="save-sub">Enregistrer</button>
+    ${f.id ? `<button class="btn danger" data-act="del-sub" data-sid="${f.id}">Supprimer cet abonnement</button>` : ''}
+    <button class="btn" data-act="close-sheet">Annuler</button></div>`;
+}
+async function saveSub() {
+  const f = form; if (!f || f.saving) return;
+  if (!f.clientId) return toast('Choisis un client');
+  const price = Number(f.price);
+  if (f.price === '' || !(price >= 0)) return toast('Prix invalide');
+  if (!f.start) return toast('Indique la date de début');
+  const newName = (f.newName || '').trim(), newPhone = (f.newPhone || '').trim();
+  if (f.clientId === '__new' && (!newName || !newPhone)) return toast('Nom et numéro WhatsApp requis');
+  f.saving = true;
+  try {
+    let clientId = f.clientId, clientName;
+    if (clientId === '__new') {
+      const ref = await db.collection('clients').add({ name:newName, phone:newPhone, note:'', createdAt:TS() });
+      clientId = ref.id; clientName = newName;
+    } else clientName = clientById(clientId).name;
+    const data = { clientId, clientName, service:f.service, months:f.months, price, method:f.method, paid:!!f.paid,
+      startDate:f.start, endDate:addDays(f.start, DAYS[f.months]), note:(f.note || '').trim() };
+    if (f.id) await db.doc('subscriptions/' + f.id).update(data);
+    else await db.collection('subscriptions').add({ ...data, archived:false, createdAt:TS() });
+    closeSheet(); toast('Abonnement enregistré ✓');
+  } catch (err) { console.error(err); f.saving = false; toast('Erreur : ' + (err.message || err)); }
+}
+
+/* ============ Feuille client ============ */
+function openClientForm(c) {
+  cform = c ? { id:c.id, name:c.name, phone:c.phone || '', note:c.note || '' } : { id:null, name:'', phone:'', note:'' };
+  showSheet(`<h3>${c ? 'Modifier le client' : 'Nouveau client'}</h3>
+    <div class="field"><label>Nom</label><input data-c="name" value="${esc(cform.name)}" autocomplete="off"></div>
+    <div class="field"><label>Numéro WhatsApp</label><input data-c="phone" type="tel" value="${esc(cform.phone)}" placeholder="081 234 5678"></div>
+    <div class="field"><label>Note</label><input data-c="note" value="${esc(cform.note)}" autocomplete="off"></div>
+    <div class="stack"><button class="btn primary" data-act="save-client">Enregistrer</button>
+    ${c ? `<button class="btn danger" data-act="del-client" data-id="${c.id}">Supprimer ce client</button>` : ''}
+    <button class="btn" data-act="close-sheet">Annuler</button></div>`);
+}
+async function saveClient() {
+  const f = cform; if (!f || f.saving) return;
+  const name = f.name.trim(), phone = f.phone.trim();
+  if (!name || !phone) return toast('Nom et numéro WhatsApp requis');
+  f.saving = true;
+  try {
+    if (f.id) {
+      const batch = db.batch();
+      batch.update(db.doc('clients/' + f.id), { name, phone, note:f.note.trim() });
+      subs.filter((s) => s.clientId === f.id && s.clientName !== name).forEach((s) => batch.update(db.doc('subscriptions/' + s.id), { clientName:name }));
+      await batch.commit();
+    } else await db.collection('clients').add({ name, phone, note:f.note.trim(), createdAt:TS() });
+    closeSheet(); toast('Client enregistré ✓');
+  } catch (err) { console.error(err); f.saving = false; toast('Erreur : ' + (err.message || err)); }
+}
+
+/* ============ Notifications push ============ */
+async function enableNotifications() {
+  const ns = notifState();
+  if (!('Notification' in window) || !messaging) return toast(ns.txt.length < 90 ? ns.txt : 'Ajoute d\'abord l\'app à l\'écran d\'accueil');
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { render(); return toast('Notifications refusées'); }
+    const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    await navigator.serviceWorker.ready;
+    const token = await messaging.getToken({ vapidKey:VAPID_KEY, serviceWorkerRegistration:reg });
+    if (!token) throw new Error('Aucun jeton reçu');
+    await db.doc('settings/push').set({ tokens: firebase.firestore.FieldValue.arrayUnion(token) }, { merge:true });
+    localStorage.setItem('fcm', token);
+    toast('Notifications activées ✓'); render();
+  } catch (err) { console.error(err); toast('Erreur : ' + (err.message || err)); }
+}
+if (messaging) messaging.onMessage((p) => { const d = p.data || {}; toast((d.title || '') + ' ' + (d.body || '')); });
+
+/* ============ Événements ============ */
+document.addEventListener('click', async (e) => {
+  if (e.target.closest('a')) return;
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const { act, id, sid, v } = el.dataset;
+  const sub = sid ? subs.find((s) => s.id === sid) : null;
+  switch (act) {
+    case 'tab': ui.tab = el.dataset.tab; ui.detail = null; render(); window.scrollTo(0, 0); break;
+    case 'status': ui.status = v; render(); break;
+    case 'service': ui.service = v; render(); break;
+    case 'open-client': ui.detail = id; render(); $('#detail').scrollTop = 0; break;
+    case 'back': ui.detail = null; render(); break;
+    case 'new-sub': openSubForm({ clientId: ui.detail || '' }); break;
+    case 'new-client': openClientForm(null); break;
+    case 'edit-client': openClientForm(clientById(id)); break;
+    case 'edit-sub': if (sub) openSubForm({ sub }); break;
+    case 'renew-sub': if (sub) openSubForm({ clientId:sub.clientId, service:sub.service, months:Number(sub.months), method:sub.method, note:sub.note, start: sub._left > 0 ? sub.endDate : todayStr() }); break;
+    case 'archive-sub': if (sub) { await db.doc('subscriptions/' + sid).update({ archived:true }); toast('Archivé (visible dans l\'historique)'); } break;
+    case 'pick-service': form.service = v; form.priceTouched = false; form.price = PRICES[v][form.months]; showSheet(subFormHTML()); break;
+    case 'pick-months': form.months = Number(v); form.priceTouched = false; form.price = PRICES[form.service][form.months]; showSheet(subFormHTML()); break;
+    case 'pick-method': form.method = v; showSheet(subFormHTML()); break;
+    case 'save-sub': saveSub(); break;
+    case 'save-client': saveClient(); break;
+    case 'del-sub':
+      if (confirm('Supprimer définitivement cet abonnement ?')) { await db.doc('subscriptions/' + sid).delete(); closeSheet(); toast('Supprimé'); }
+      break;
+    case 'del-client': {
+      const c = clientById(id);
+      if (c && confirm(`Supprimer ${c.name} et tous ses abonnements ?`)) {
+        const batch = db.batch();
+        subs.filter((s) => s.clientId === id).forEach((s) => batch.delete(db.doc('subscriptions/' + s.id)));
+        batch.delete(db.doc('clients/' + id));
+        await batch.commit(); ui.detail = null; closeSheet(); toast('Client supprimé');
+      }
+      break;
+    }
+    case 'close-sheet': closeSheet(); break;
+    case 'enable-notif': enableNotifications(); break;
+    case 'save-tpl': await db.doc('settings/app').set({ template: $('#tpl').value }, { merge:true }); toast('Message enregistré ✓'); break;
+    case 'reset-tpl': await db.doc('settings/app').set({ template: DEFAULT_TEMPLATE }, { merge:true }); toast('Message réinitialisé'); break;
+    case 'logout': auth.signOut(); break;
+  }
+});
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.dataset.f === 'q') { ui.q = t.value; $('#clist').innerHTML = clientListHTML(); return; }
+  if (t.dataset.c && cform) { cform[t.dataset.c] = t.value; return; }
+  if (!t.dataset.f || !form || t.tagName === 'SELECT') return;
+  form[t.dataset.f] = t.type === 'checkbox' ? t.checked : t.value;
+  if (t.dataset.f === 'price') form.priceTouched = true;
+  if (t.dataset.f === 'start' && form.start) $('#endLabel').textContent = fmtDate(addDays(form.start, DAYS[form.months]));
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.tagName === 'SELECT' && t.dataset.f === 'clientId' && form) { form.clientId = t.value; showSheet(subFormHTML()); }
+  if (t.dataset.f === 'start' && form && form.start) $('#endLabel').textContent = fmtDate(addDays(form.start, DAYS[form.months]));
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+/* ============ Connexion et données ============ */
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('#loginErr').textContent = '';
+  try { await auth.signInWithEmailAndPassword($('#email').value.trim(), $('#pass').value); }
+  catch (err) { $('#loginErr').textContent = 'Email ou mot de passe incorrect.'; }
+});
+
+function start() {
+  if (unsubs.length) return;
+  const onErr = (err) => { console.error(err); toast('Accès refusé : vérifie les règles Firestore et ton email'); };
+  unsubs.push(db.collection('clients').onSnapshot((s) => { clients = s.docs.map((d) => ({ id:d.id, ...d.data() })); loaded.c = true; render(); }, onErr));
+  unsubs.push(db.collection('subscriptions').onSnapshot((s) => { subs = s.docs.map((d) => ({ id:d.id, ...d.data() })); loaded.s = true; render(); }, onErr));
+  unsubs.push(db.doc('settings/app').onSnapshot((d) => { template = (d.exists && d.data().template) || DEFAULT_TEMPLATE; if (ui.tab === 'settings' && document.activeElement.id !== 'tpl') render(); }, onErr));
+}
+function stop() { unsubs.forEach((u) => u()); unsubs = []; clients = []; subs = []; loaded = { c:false, s:false }; ui.detail = null; closeSheet(); }
+
+auth.onAuthStateChanged((u) => {
+  $('#boot').hidden = true;
+  $('#login').hidden = !!u; $('#app').hidden = !u;
+  if (u) { start(); render(); } else stop();
+});
+</script>
+</body>
+</html>
