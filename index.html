@@ -267,6 +267,20 @@ const PROFILE_SETS = {
   prime:       { count:6,  prefix:'Prime' },
   crunchyroll: { count:5,  prefix:'OTW' }
 };
+// Page où tu paies chacun de tes comptes (modifiable pour chaque compte dans « Mes comptes »)
+const PAY_URLS = {
+  netflix:     'https://www.netflix.com/youraccount',
+  prime:       'https://www.primevideo.com/settings',
+  crunchyroll: 'https://www.crunchyroll.com/account/membership'
+};
+// Tes 5 comptes et leur prochaine date de paiement (relevées sur tes captures du 14 octobre 2026)
+const ACCOUNT_SEED = [
+  { name:'Netflix 1',   service:'netflix',     endDate:'2026-11-12', note:'Profils Vision 1 à 5' },
+  { name:'Netflix 2',   service:'netflix',     endDate:'2026-11-12', note:'Profils Vision 6 à 10' },
+  { name:'Netflix 3',   service:'netflix',     endDate:'2026-10-26', note:'Profils Vision 11 à 15' },
+  { name:'Prime Video', service:'prime',       endDate:'2026-11-08', note:'' },
+  { name:'Crunchyroll', service:'crunchyroll', endDate:'2026-11-14', note:'' }
+];
 // Un Combo occupe un profil Netflix ET un profil Prime Video
 const COMPONENTS = { netflix:['netflix'], prime:['prime'], crunchyroll:['crunchyroll'], combo:['netflix','prime'] };
 
@@ -435,6 +449,7 @@ function priceFor(svc, days) {
 const fmtShort = (s) => new Date(toUTC(s)).toLocaleDateString('fr-FR', { day:'numeric', month:'short', timeZone:'UTC' });
 
 /* ----- Mes comptes (ceux que je paie) ----- */
+const accPayUrl = (a) => a.payUrl || PAY_URLS[a.service] || '';
 const accLeft = (a) => a.endDate ? diffDays(todayStr(), a.endDate) : null;
 const accNext = (a) => a.endDate ? addDays(a.endDate >= todayStr() ? a.endDate : todayStr(), Math.max(1, Math.round(Number(a.cycleDays)) || 30)) : '';
 function accLabel(d) {
@@ -648,9 +663,15 @@ async function savePname(id, reset) {
 function viewAccounts() {
   const head = `<p class="note">Les comptes que tu paies toi-même. Tu reçois un rappel 2 jours avant la fin, puis chaque jour tant que tu n'as pas touché « J'ai renouvelé ».</p>`;
   if (!accounts.length) {
-    return head + `<div class="panel"><h3>Aucun compte pour le moment</h3><p>Je peux créer d'un coup tes 5 comptes (3 Netflix, 1 Prime Video, 1 Crunchyroll). Tu n'auras plus qu'à indiquer la date de fin de chacun.</p><button class="btn primary" data-act="seed-acc">Créer mes 5 comptes</button></div><button class="btn" data-act="new-acc">Ajouter un compte</button>`;
+    return head + `<div class="panel"><h3>Aucun compte pour le moment</h3><p>Je crée d'un coup tes 5 comptes (3 Netflix, 1 Prime Video, 1 Crunchyroll) avec leur prochaine date de paiement.</p><button class="btn primary" data-act="seed-acc">Créer mes 5 comptes</button></div><button class="btn" data-act="new-acc">Ajouter un compte</button>`;
   }
-  return head + searchBox('Chercher un compte') + `<div id="clist">${accountsListHTML()}</div><button class="btn" style="margin-top:6px" data-act="new-acc">Ajouter un compte</button>`;
+  const missing = seedMissing();
+  const fill = missing.length ? `<div class="panel"><h3>Dates à compléter</h3><p>${missing.map((m) => esc(m.name)).join(', ')} : je peux remplir la prochaine date de paiement d'après tes captures d'écran.</p><button class="btn primary" data-act="fill-acc">Remplir les dates</button></div>` : '';
+  return head + fill + searchBox('Chercher un compte') + `<div id="clist">${accountsListHTML()}</div><button class="btn" style="margin-top:6px" data-act="new-acc">Ajouter un compte</button>`;
+}
+const seedKey = (x) => norm(x).replace(/\s+/g, ' ').trim();
+function seedMissing() {
+  return ACCOUNT_SEED.filter((sd) => { const a = accounts.find((x) => seedKey(x.name) === seedKey(sd.name)); return a && !a.endDate; });
 }
 function accountsListHTML() {
   const list = accounts.filter((a) => matchQ(ui.q, [a.name, (SERVICES[a.service] || {}).label || '', a.note || ''])).sort((a, b) => (a.endDate || '9999').localeCompare(b.endDate || '9999') || a.name.localeCompare(b.name));
@@ -662,13 +683,13 @@ function accountsListHTML() {
       <div class="dates">${a.endDate ? 'Fin le ' + fmtDate(a.endDate) : 'Pas de date'}</div>
       <div class="info">${next ? `<span>Après renouvellement : jusqu'au ${fmtDate(next)}</span>` : ''}<span>Cycle de ${Math.round(Number(a.cycleDays)) || 30} jours</span></div>
       ${a.note ? `<div class="info" style="margin-top:4px"><span>${esc(a.note)}</span></div>` : ''}
-      <div class="acts"><button class="btn small primary" data-act="renew-acc" data-id="${a.id}" ${a.endDate ? '' : 'disabled'}>J'ai renouvelé</button><button class="btn small" data-act="edit-acc" data-id="${a.id}">Modifier</button></div></div>`;
+      <div class="acts">${accPayUrl(a) ? `<a class="btn small primary" href="${esc(accPayUrl(a))}" target="_blank" rel="noopener">Payer ↗</a>` : ''}<button class="btn small" data-act="renew-acc" data-id="${a.id}" ${a.endDate ? '' : 'disabled'}>J'ai renouvelé</button><button class="btn small" data-act="edit-acc" data-id="${a.id}">Modifier</button></div></div>`;
   }).join('');
 }
 const accHint = (f) => f.endDate ? `Après renouvellement : jusqu'au ${fmtDate(accNext({ endDate:f.endDate, cycleDays:f.cycleDays }))}` : 'Indique la date de fin pour calculer le prochain renouvellement.';
 function openAccForm(a) {
-  aform = a ? { id:a.id, name:a.name, service:a.service, endDate:a.endDate || '', cycleDays:a.cycleDays || 30, note:a.note || '' }
-    : { id:null, name:'', service:'netflix', endDate:'', cycleDays:30, note:'' };
+  aform = a ? { id:a.id, name:a.name, service:a.service, endDate:a.endDate || '', cycleDays:a.cycleDays || 30, note:a.note || '', payUrl:a.payUrl || '' }
+    : { id:null, name:'', service:'netflix', endDate:'', cycleDays:30, note:'', payUrl:'' };
   const f = aform;
   showSheet(`<h3>${a ? 'Modifier le compte' : 'Nouveau compte'}</h3>
     <div class="field"><label>Nom du compte</label><input data-a="name" value="${esc(f.name)}" placeholder="Netflix 1" autocomplete="off"></div>
@@ -676,6 +697,7 @@ function openAccForm(a) {
     <div class="field"><label>Fin de l'abonnement actuel</label><input data-a="endDate" type="date" value="${esc(f.endDate)}"></div>
     <div class="field"><label>Durée d'un renouvellement (jours)</label><input data-a="cycleDays" type="number" inputmode="numeric" min="1" value="${esc(f.cycleDays)}"><span class="hint" id="accNext">${esc(accHint(f))}</span></div>
     <div class="field"><label>Note (email du compte…)</label><input data-a="note" value="${esc(f.note)}" autocomplete="off"></div>
+    <div class="field"><label>Lien de la page de paiement (facultatif)</label><input data-a="payUrl" type="url" value="${esc(f.payUrl)}" placeholder="${esc(PAY_URLS[f.service] || 'https://…')}" autocomplete="off"><span class="hint">Laisse vide pour utiliser le lien habituel du service. Le bouton « Payer » et la notification ouvrent cette page.</span></div>
     <div class="stack"><button class="btn primary" data-act="save-acc">Enregistrer</button>
     ${a ? `<button class="btn danger" data-act="del-acc" data-id="${a.id}">Supprimer ce compte</button>` : ''}
     <button class="btn" data-act="close-sheet">Annuler</button></div>`);
@@ -687,7 +709,7 @@ async function saveAcc() {
   let name = (f.name || '').trim();
   if (!name) name = `${SHORT[f.service]} ${accounts.filter((x) => x.service === f.service).length + 1}`;
   f.saving = true;
-  const data = { name, service:f.service, endDate:f.endDate || '', cycleDays:cycle, note:(f.note || '').trim() };
+  const data = { name, service:f.service, endDate:f.endDate || '', cycleDays:cycle, note:(f.note || '').trim(), payUrl:(f.payUrl || '').trim() };
   try {
     if (f.id) await db.doc('accounts/' + f.id).update(data);
     else await db.collection('accounts').add({ ...data, createdAt:TS() });
@@ -997,9 +1019,17 @@ document.addEventListener('click', async (e) => {
     }
     case 'seed-acc': {
       const batch = db.batch();
-      [['Netflix 1', 'netflix'], ['Netflix 2', 'netflix'], ['Netflix 3', 'netflix'], ['Prime Video', 'prime'], ['Crunchyroll', 'crunchyroll']]
-        .forEach(([name, service]) => batch.set(db.collection('accounts').doc(), { name, service, endDate:'', cycleDays:30, note:'', createdAt:TS() }));
-      await batch.commit(); toast('5 comptes créés. Indique la date de fin de chacun.');
+      ACCOUNT_SEED.forEach((sd) => batch.set(db.collection('accounts').doc(), { ...sd, cycleDays:30, createdAt:TS() }));
+      await batch.commit(); toast('5 comptes créés avec leurs dates ✓');
+      break;
+    }
+    case 'fill-acc': {
+      const batch = db.batch(); let n = 0;
+      seedMissing().forEach((sd) => {
+        const a = accounts.find((x) => seedKey(x.name) === seedKey(sd.name));
+        batch.update(db.doc('accounts/' + a.id), { endDate:sd.endDate, ...(a.note ? {} : { note:sd.note }) }); n++;
+      });
+      if (n) { await batch.commit(); toast(`${n} date${n > 1 ? 's' : ''} remplie${n > 1 ? 's' : ''} ✓`); }
       break;
     }
     case 'pick-method': form.method = v; showSheet(subFormHTML()); break;
