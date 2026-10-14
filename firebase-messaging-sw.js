@@ -17,13 +17,15 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-// Un tap sur la notification ouvre l'app
+// Un tap sur la notification ouvre l'app (ou la page de paiement du compte)
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || './';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) { if ('focus' in c) return c.focus(); }
+      // Lien externe (page de paiement Netflix, Prime, Crunchyroll) : on l'ouvre toujours
+      const external = new URL(url, self.location.href).origin !== self.location.origin;
+      if (!external) { for (const c of list) { if ('focus' in c) return c.focus(); } }
       return self.clients.openWindow(url);
     })
   );
