@@ -156,6 +156,31 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
 .state{font-weight:700;margin-bottom:12px}
 .state.ok{color:var(--ok)} .state.bad{color:var(--warn)}
 
+.iconbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--s1);border:1.5px solid var(--line)}
+.iconbtn svg{width:20px;height:20px;stroke:var(--mut);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.banner{display:block;width:100%;text-align:left;padding:12px 14px;margin:8px 0 12px;border-radius:14px;background:rgba(255,178,31,.12);border:1.5px solid rgba(255,178,31,.45);color:var(--warn);font-weight:600;font-size:14.5px;line-height:1.35}
+.banner.bad{background:rgba(255,74,92,.12);border-color:rgba(255,74,92,.5);color:var(--bad)}
+.note{color:var(--mut);font-size:14.5px;margin:10px 0 14px}
+.prof{font-weight:700;color:var(--tx)}
+.segs.four{grid-template-columns:repeat(4,1fr)}
+.pfgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.pf{padding:9px 8px;border-radius:12px;background:var(--s2);border:1.5px solid var(--line);text-align:left;display:flex;flex-direction:column;min-width:0;color:var(--tx)}
+.pf b{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf small{font-size:11.5px;color:var(--ok);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf.busy{opacity:.45} .pf.busy small,.pf.none small{color:var(--mut)}
+.pf.on{opacity:1;border-color:#4b6bff;box-shadow:inset 0 0 0 1px #4b6bff}
+.pfsum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 6px}
+.pfsum div{padding:12px;border-radius:14px;background:var(--svc);color:#fff}
+.pfsum b{display:block;font-family:var(--disp);font-size:26px;line-height:1.1}
+.pfsum span{font-size:12.5px;font-weight:600;opacity:.92}
+.pt{padding:10px;border-radius:14px;background:var(--s1);border:1.5px solid var(--line);text-align:left;display:flex;flex-direction:column;gap:1px;min-width:0;color:var(--tx)}
+.pt b{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pt span{font-size:12.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pt em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--mut)}
+.pt.free{border-color:rgba(53,212,135,.6);border-style:dashed} .pt.free em{color:var(--ok)}
+.pt.warn{border-color:rgba(255,178,31,.65)} .pt.warn em{color:var(--warn)}
+.pt.bad{border-color:rgba(255,74,92,.7)} .pt.bad em{color:var(--bad)}
+.svch{margin:20px 0 10px}
 #toast{position:fixed;left:50%;bottom:calc(96px + var(--sab));transform:translateX(-50%);background:#fff;color:#0b0d14;padding:11px 18px;border-radius:99px;font-weight:700;font-size:14.5px;z-index:80;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 </style>
@@ -178,15 +203,16 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
 
 <!-- Application -->
 <div id="app" hidden>
-  <header class="top"><div class="logo">VISION<small>streaming</small></div></header>
+  <header class="top"><div class="logo">VISION<small>streaming</small></div><button class="iconbtn" data-act="tab" data-tab="settings" aria-label="Réglages"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></header>
   <main id="view"></main>
 
-  <button class="fab" data-act="new-sub" aria-label="Nouvel abonnement"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button class="fab" data-act="fab" aria-label="Ajouter"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 
   <nav class="tabs"><div class="in">
     <button class="tab on" data-act="tab" data-tab="subs"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg>Abonnements</button>
     <button class="tab" data-act="tab" data-tab="clients"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 5a3.2 3.2 0 0 1 0 6M18.5 14.8c1.7.7 2.7 2.3 3 5.2"/></svg>Clients</button>
-    <button class="tab" data-act="tab" data-tab="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Réglages</button>
+    <button class="tab" data-act="tab" data-tab="profiles"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>Profils</button>
+    <button class="tab" data-act="tab" data-tab="accounts"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10.5h18M7 15h3"/></svg>Mes comptes</button>
   </div></nav>
 
   <div id="detail" class="page" hidden></div>
@@ -214,9 +240,19 @@ const PRICES = {
   crunchyroll: { 1:12000, 3:36000,  6:72000 },
   combo:       { 1:18000, 3:54000,  6:108000 }
 };
-const DAYS = { 1:30, 3:90, 6:180 };
+const TIERS = [30, 90, 180]; // paliers 1, 3 et 6 mois
 const METHODS = ['Illicocash','Orange Money','Airtel Money','Cash','Autre'];
 const DEFAULT_TEMPLATE = "Bonjour {nom} 👋\nVotre abonnement {service} chez Vision Streaming {quand} (le {date}).\nSouhaitez-vous le renouveler ? Merci !";
+
+const SHORT = { netflix:'Netflix', prime:'Prime Video', crunchyroll:'Crunchyroll' };
+// Profils de chaque service (modifie les nombres ou les préfixes ici si besoin)
+const PROFILE_SETS = {
+  netflix:     { count:15, prefix:'Vision' },
+  prime:       { count:6,  prefix:'Prime' },
+  crunchyroll: { count:5,  prefix:'OTW' }
+};
+// Un Combo occupe un profil Netflix ET un profil Prime Video
+const COMPONENTS = { netflix:['netflix'], prime:['prime'], crunchyroll:['crunchyroll'], combo:['netflix','prime'] };
 
 /* ============ Firebase ============ */
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -247,12 +283,13 @@ function toast(msg) {
 
 /* ============ État ============ */
 const ui = { tab:'subs', status:'all', service:'all', q:'', detail:null };
-let clients = [], subs = [], template = DEFAULT_TEMPLATE;
+let clients = [], subs = [], accounts = [], profileNames = {}, template = DEFAULT_TEMPLATE;
 let loaded = { c:false, s:false };
 let unsubs = [];
-let form = null, cform = null;
+let form = null, cform = null, aform = null;
 const params = new URLSearchParams(location.search);
 if (params.get('filter') === 'soon') ui.status = 'soon';
+if (['accounts', 'profiles', 'clients'].includes(params.get('tab'))) ui.tab = params.get('tab');
 
 const clientById = (id) => clients.find((c) => c.id === id);
 
@@ -264,6 +301,51 @@ function enrich() {
 }
 const statusOf = (s) => s._left < 0 ? 'expired' : s._left <= 3 ? 'soon' : 'active';
 const isVisible = (s) => s._current && !s.archived;
+
+/* ----- Profils ----- */
+const defaultName = (id) => { const [svc, n] = id.split('-'); return `${PROFILE_SETS[svc].prefix} ${n}`; };
+const profName = (id) => profileNames[id] || defaultName(id);
+const allProfiles = (svc) => Array.from({ length:PROFILE_SETS[svc].count }, (_, i) => `${svc}-${i + 1}`);
+const hasProf = (s) => Object.values(s.profiles || {}).some(Boolean);
+const profLabel = (s) => Object.values(s.profiles || {}).filter(Boolean).map(profName).join(' + ');
+const profTag = (s) => hasProf(s) ? `<span class="prof">${esc(profLabel(s))}</span>` : '';
+function occupancy() {
+  const occ = {};
+  subs.filter(isVisible).forEach((s) => Object.values(s.profiles || {}).forEach((id) => { if (id) occ[id] = s; }));
+  return occ;
+}
+
+/* ----- Durées et prix ----- */
+const subDays = (s) => Number(s.days) || Math.round(Number(s.months || 1) * 30);
+function durLabel(s) {
+  const d = subDays(s);
+  if (TIERS.includes(d)) return `${d / 30} mois`;
+  return d % 30 === 0 ? `${d / 30} mois (${d} j)` : `${d} jours`;
+}
+function priceFor(svc, days) {
+  if (!(days > 0)) return 0;
+  const tier = { 30:1, 90:3, 180:6 }[days];
+  return tier ? PRICES[svc][tier] : Math.round(PRICES[svc][1] * days / 30);
+}
+const fmtShort = (s) => new Date(toUTC(s)).toLocaleDateString('fr-FR', { day:'numeric', month:'short', timeZone:'UTC' });
+
+/* ----- Mes comptes (ceux que je paie) ----- */
+const accLeft = (a) => a.endDate ? diffDays(todayStr(), a.endDate) : null;
+const accNext = (a) => a.endDate ? addDays(a.endDate >= todayStr() ? a.endDate : todayStr(), Math.max(1, Math.round(Number(a.cycleDays)) || 30)) : '';
+function accLabel(d) {
+  if (d === null) return 'Date à renseigner';
+  if (d < 0) return d === -1 ? "En retard d'un jour" : `En retard de ${-d} jours`;
+  if (d === 0) return "À payer aujourd'hui";
+  if (d === 1) return 'À payer demain';
+  return `Dans ${d} jours`;
+}
+const accCls = (d) => d === null ? '' : d < 0 ? 'bad' : d <= 2 ? 'warn' : 'ok';
+function accBanner() {
+  const due = accounts.filter((a) => { const d = accLeft(a); return d !== null && d <= 2; }).sort((a, b) => a.endDate.localeCompare(b.endDate));
+  if (!due.length) return '';
+  const txt = due.map((a) => { const d = accLeft(a); return `${esc(a.name)} (${d < 0 ? 'en retard' : d === 0 ? "aujourd'hui" : d === 1 ? 'demain' : 'dans ' + d + ' jours'})`; }).join(', ');
+  return `<button class="banner ${due.some((a) => accLeft(a) <= 0) ? 'bad' : ''}" data-act="tab" data-tab="accounts">💳 Comptes à renouveler : ${txt}</button>`;
+}
 
 function leftLabel(s) {
   const d = s._left;
@@ -303,7 +385,7 @@ function render() {
   enrich();
   const searching = document.activeElement && document.activeElement.id === 'q';
   if (searching && ui.tab === 'clients') { $('#clist').innerHTML = clientListHTML(); }
-  else $('#view').innerHTML = ui.tab === 'subs' ? viewSubs() : ui.tab === 'clients' ? viewClients() : viewSettings();
+  else $('#view').innerHTML = ({ subs:viewSubs, clients:viewClients, profiles:viewProfiles, accounts:viewAccounts, settings:viewSettings })[ui.tab]();
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === ui.tab));
   $('.fab').hidden = ui.tab === 'settings';
   if (ui.detail) renderDetail(); else $('#detail').hidden = true;
@@ -317,7 +399,7 @@ function subRow(s) {
   return `<div class="row" style="--svc:${sv.bg}" data-act="open-client" data-id="${s.clientId}">
     <div class="days ${cls}"><b>${s._left < 0 ? '−' + n : s._left === 0 ? '0' : n}</b><span>${sub}</span></div>
     <div class="row-main"><strong>${esc(s.clientName)}</strong>
-      <div class="meta"><span class="badge" style="--svc:${sv.bg}">${sv.label}</span><span>Fin le ${fmtDate(s.endDate)}</span></div></div>
+      <div class="meta"><span class="badge" style="--svc:${sv.bg}">${sv.label}</span>${profTag(s)}<span>Fin le ${fmtDate(s.endDate)}</span></div></div>
     ${waBtn(s)}</div>`;
 }
 
@@ -329,7 +411,7 @@ function viewSubs() {
   list.sort((a, b) => a.endDate.localeCompare(b.endDate) || a.clientName.localeCompare(b.clientName));
   const stat = (k, cls, label) => `<button class="stat ${cls} ${ui.status === k ? 'on' : ''}" data-act="status" data-v="${ui.status === k ? 'all' : k}"><b>${n[k]}</b><span>${label}</span></button>`;
   const chip = (k, label, dot) => `<button class="chip ${ui.service === k ? 'on' : ''}" data-act="service" data-v="${k}">${dot ? `<i style="background:${dot}"></i>` : ''}${label}</button>`;
-  return `<div class="stats">${stat('soon','warn','Finissent bientôt')}${stat('expired','bad','Expirés')}${stat('active','ok','En cours')}</div>
+  return `${accBanner()}<div class="stats">${stat('soon','warn','Finissent bientôt')}${stat('expired','bad','Expirés')}${stat('active','ok','En cours')}</div>
     <div class="chips">${chip('all','Tous')}${Object.entries(SERVICES).map(([k, v]) => chip(k, v.label.replace('Combo Netflix + Prime','Combo'), v.bg)).join('')}</div>
     ${list.length ? list.map(subRow).join('') : `<div class="empty">${all.length ? 'Aucun abonnement dans ce filtre.' : 'Aucun abonnement pour le moment.<br>Appuie sur + pour ajouter le premier.'}</div>`}`;
 }
@@ -359,13 +441,13 @@ function subCard(s, old) {
   return `<div class="sub ${old ? 'old' : ''}" style="--svc:${sv.bg}">
     <div class="top"><span class="badge" style="--svc:${sv.bg}">${sv.label}</span>${pill}</div>
     <div class="dates">${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}</div>
-    <div class="info"><span>${s.months} mois</span><span>${money(s.price)}</span><span>${esc(s.method || '')}</span>${s.paid === false ? '<span class="unpaid">Non payé</span>' : ''}</div>
+    <div class="info">${profTag(s)}<span>${durLabel(s)}</span><span>${money(s.price)}</span><span>${esc(s.method || '')}</span>${s.paid === false ? '<span class="unpaid">Non payé</span>' : ''}</div>
     ${s.note ? `<div class="info" style="margin-top:4px"><span>${esc(s.note)}</span></div>` : ''}
     <div class="acts">
       ${cur ? `<button class="btn small primary" data-act="renew-sub" data-sid="${s.id}">Renouveler</button>` : ''}
       ${cur && !s.archived ? waBtn(s).replace('class="wa"', 'class="wa" style="width:40px;height:40px"') : ''}
       <button class="btn small" data-act="edit-sub" data-sid="${s.id}">Modifier</button>
-      ${cur && !s.archived && s._left < 0 ? `<button class="btn small" data-act="archive-sub" data-sid="${s.id}">Archiver</button>` : ''}
+      ${cur && !s.archived && s._left < 0 ? `<button class="btn small" data-act="archive-sub" data-sid="${s.id}">${hasProf(s) ? 'Libérer le profil' : 'Archiver'}</button>` : ''}
     </div></div>`;
 }
 
@@ -392,6 +474,99 @@ function renderDetail() {
     ${history.length ? history.map((s) => subCard(s, true)).join('') : '<div class="empty" style="padding:18px">Pas encore d\'ancien abonnement.</div>'}
   </div>`;
   el.hidden = false; el.scrollTop = keep;
+}
+
+function viewProfiles() {
+  const occ = occupancy();
+  const free = (svc) => allProfiles(svc).filter((id) => !occ[id]).length;
+  const sum = Object.keys(PROFILE_SETS).map((svc) => `<div style="--svc:${SERVICES[svc].bg}"><b>${free(svc)}</b><span>${SHORT[svc]}, libre${free(svc) > 1 ? 's' : ''}</span></div>`).join('');
+  const toFree = subs.filter((s) => isVisible(s) && hasProf(s) && s._left < 0);
+  const banner = toFree.length ? `<div class="banner bad">🔓 À libérer : ${toFree.map((s) => `${esc(profLabel(s))} (${esc(s.clientName)})`).join(', ')}</div>` : '';
+  const noProf = subs.filter((s) => isVisible(s) && !hasProf(s)).sort((a, b) => a.endDate.localeCompare(b.endDate));
+  const noProfHTML = noProf.length
+    ? `<h2>Abonnements sans profil (${noProf.length})</h2>` + noProf.map((s) => `<div class="client-line" data-act="edit-sub" data-sid="${s.id}"><div class="main"><strong>${esc(s.clientName)}</strong><small>${(SERVICES[s.service] || {}).label}, fin le ${fmtDate(s.endDate)}</small></div><span class="pill warn">Choisir un profil</span></div>`).join('')
+    : '';
+  const sections = Object.keys(PROFILE_SETS).map((svc) => {
+    const tiles = allProfiles(svc).map((id) => {
+      const o = occ[id]; let cls = 'free', l2 = '&nbsp;', l3 = 'Libre';
+      if (o) {
+        const st = statusOf(o);
+        cls = st === 'expired' ? 'bad' : st === 'soon' ? 'warn' : '';
+        l2 = esc(o.clientName);
+        l3 = st === 'expired' ? 'À libérer' : `Jusqu'au ${fmtShort(o.endDate)}`;
+      }
+      return `<button class="pt ${cls}" data-act="open-profile" data-id="${id}"><b>${esc(profName(id))}</b><span>${l2}</span><em>${l3}</em></button>`;
+    }).join('');
+    return `<h2 class="svch"><span class="badge" style="--svc:${SERVICES[svc].bg}">${SHORT[svc]}</span></h2><div class="pfgrid">${tiles}</div>`;
+  }).join('');
+  return `<div class="pfsum">${sum}</div>${banner}${noProfHTML}${sections}<p class="note">Touche un profil pour changer son nom (par exemple un prénom), voir son client ou le libérer.</p>`;
+}
+
+function openProfileSheet(id) {
+  const svc = id.split('-')[0], o = occupancy()[id];
+  showSheet(`<h3>${esc(profName(id))}</h3>
+    <p class="note" style="margin-top:-8px">${SHORT[svc]}${o ? `. Occupé par ${esc(o.clientName)}, jusqu'au ${fmtDate(o.endDate)}.` : '. Ce profil est libre.'}</p>
+    <div class="field"><label>Nom du profil (par exemple un prénom)</label><input id="pname" value="${esc(profName(id))}" autocomplete="off"></div>
+    <div class="stack">
+      <button class="btn primary" data-act="save-pname" data-id="${id}">Enregistrer le nom</button>
+      ${o ? `<button class="btn" data-act="goto-client" data-id="${o.clientId}">Voir ${esc(o.clientName)}</button>
+        <button class="btn" data-act="free-profile" data-sid="${o.id}">Libérer ce profil</button>`
+        : `<button class="btn" data-act="sub-on-profile" data-id="${id}">Ajouter un abonnement sur ce profil</button>`}
+      <button class="btn small" style="align-self:flex-start" data-act="reset-pname" data-id="${id}">Remettre le nom d'origine (${esc(defaultName(id))})</button>
+      <button class="btn" data-act="close-sheet">Fermer</button>
+    </div>`);
+}
+async function savePname(id, reset) {
+  const name = reset ? '' : ($('#pname').value || '').trim();
+  const val = !name || name === defaultName(id) ? firebase.firestore.FieldValue.delete() : name;
+  await db.doc('settings/profiles').set({ names: { [id]: val } }, { merge:true });
+  closeSheet(); toast('Nom enregistré ✓');
+}
+
+function viewAccounts() {
+  const head = `<p class="note">Les comptes que tu paies toi-même. Tu reçois un rappel 2 jours avant la fin, puis chaque jour tant que tu n'as pas touché « J'ai renouvelé ».</p>`;
+  if (!accounts.length) {
+    return head + `<div class="panel"><h3>Aucun compte pour le moment</h3><p>Je peux créer d'un coup tes 5 comptes (3 Netflix, 1 Prime Video, 1 Crunchyroll). Tu n'auras plus qu'à indiquer la date de fin de chacun.</p><button class="btn primary" data-act="seed-acc">Créer mes 5 comptes</button></div><button class="btn" data-act="new-acc">Ajouter un compte</button>`;
+  }
+  const list = [...accounts].sort((a, b) => (a.endDate || '9999').localeCompare(b.endDate || '9999') || a.name.localeCompare(b.name));
+  return head + list.map((a) => {
+    const sv = SERVICES[a.service] || SERVICES.netflix, d = accLeft(a), next = accNext(a);
+    return `<div class="sub" style="--svc:${sv.bg}">
+      <div class="top"><span class="badge" style="--svc:${sv.bg}">${esc(a.name)}</span><span class="pill ${accCls(d)}">${accLabel(d)}</span></div>
+      <div class="dates">${a.endDate ? 'Fin le ' + fmtDate(a.endDate) : 'Pas de date'}</div>
+      <div class="info">${next ? `<span>Après renouvellement : jusqu'au ${fmtDate(next)}</span>` : ''}<span>Cycle de ${Math.round(Number(a.cycleDays)) || 30} jours</span></div>
+      ${a.note ? `<div class="info" style="margin-top:4px"><span>${esc(a.note)}</span></div>` : ''}
+      <div class="acts"><button class="btn small primary" data-act="renew-acc" data-id="${a.id}" ${a.endDate ? '' : 'disabled'}>J'ai renouvelé</button><button class="btn small" data-act="edit-acc" data-id="${a.id}">Modifier</button></div></div>`;
+  }).join('') + `<button class="btn" style="margin-top:6px" data-act="new-acc">Ajouter un compte</button>`;
+}
+const accHint = (f) => f.endDate ? `Après renouvellement : jusqu'au ${fmtDate(accNext({ endDate:f.endDate, cycleDays:f.cycleDays }))}` : 'Indique la date de fin pour calculer le prochain renouvellement.';
+function openAccForm(a) {
+  aform = a ? { id:a.id, name:a.name, service:a.service, endDate:a.endDate || '', cycleDays:a.cycleDays || 30, note:a.note || '' }
+    : { id:null, name:'', service:'netflix', endDate:'', cycleDays:30, note:'' };
+  const f = aform;
+  showSheet(`<h3>${a ? 'Modifier le compte' : 'Nouveau compte'}</h3>
+    <div class="field"><label>Nom du compte</label><input data-a="name" value="${esc(f.name)}" placeholder="Netflix 1" autocomplete="off"></div>
+    <div class="field"><label>Service</label><select data-a="service">${Object.keys(PROFILE_SETS).map((k) => `<option value="${k}" ${f.service === k ? 'selected' : ''}>${SHORT[k]}</option>`).join('')}</select></div>
+    <div class="field"><label>Fin de l'abonnement actuel</label><input data-a="endDate" type="date" value="${esc(f.endDate)}"></div>
+    <div class="field"><label>Durée d'un renouvellement (jours)</label><input data-a="cycleDays" type="number" inputmode="numeric" min="1" value="${esc(f.cycleDays)}"><span class="hint" id="accNext">${esc(accHint(f))}</span></div>
+    <div class="field"><label>Note (email du compte…)</label><input data-a="note" value="${esc(f.note)}" autocomplete="off"></div>
+    <div class="stack"><button class="btn primary" data-act="save-acc">Enregistrer</button>
+    ${a ? `<button class="btn danger" data-act="del-acc" data-id="${a.id}">Supprimer ce compte</button>` : ''}
+    <button class="btn" data-act="close-sheet">Annuler</button></div>`);
+}
+async function saveAcc() {
+  const f = aform; if (!f || f.saving) return;
+  const cycle = Math.round(Number(f.cycleDays));
+  if (!(cycle >= 1)) return toast('Durée invalide');
+  let name = (f.name || '').trim();
+  if (!name) name = `${SHORT[f.service]} ${accounts.filter((x) => x.service === f.service).length + 1}`;
+  f.saving = true;
+  const data = { name, service:f.service, endDate:f.endDate || '', cycleDays:cycle, note:(f.note || '').trim() };
+  try {
+    if (f.id) await db.doc('accounts/' + f.id).update(data);
+    else await db.collection('accounts').add({ ...data, createdAt:TS() });
+    closeSheet(); toast('Compte enregistré ✓');
+  } catch (err) { console.error(err); f.saving = false; toast('Erreur : ' + (err.message || err)); }
 }
 
 function notifState() {
@@ -423,34 +598,88 @@ function showSheet(html) {
 }
 function closeSheet() { $('#sheet').hidden = true; form = null; cform = null; }
 
+function formOcc() {
+  const f = form, occ = {};
+  subs.filter(isVisible).forEach((s) => {
+    if (s.id === f.id) return;
+    if (f.clientId && s.clientId === f.clientId && s.service === f.service) return; // renouvellement du même client
+    Object.values(s.profiles || {}).forEach((id) => { if (id) occ[id] = s; });
+  });
+  return occ;
+}
+function autoPick(prev) {
+  const f = form, occ = formOcc(), next = {};
+  COMPONENTS[f.service].forEach((svc) => {
+    const p = (prev || {})[svc];
+    next[svc] = p && p.startsWith(svc + '-') && !occ[p] ? p : (allProfiles(svc).find((id) => !occ[id]) || '');
+  });
+  f.profiles = next;
+}
 function openSubForm(o = {}) {
   const b = o.sub;
-  form = b ? { id:b.id, clientId:b.clientId, service:b.service, months:Number(b.months), price:b.price, priceTouched:true, method:b.method || 'Cash', paid:b.paid !== false, start:b.startDate, note:b.note || '', lock:true }
-    : { id:null, clientId:o.clientId || '', service:o.service || 'netflix', months:o.months || 1, price:'', priceTouched:false, method:o.method || 'Orange Money', paid:true, start:o.start || todayStr(), note:o.note || '', lock:!!o.clientId, newName:'', newPhone:'' };
-  if (!form.priceTouched) form.price = PRICES[form.service][form.months];
+  if (b) {
+    const d = subDays(b);
+    form = { id:b.id, clientId:b.clientId, service:b.service, days:d, custom:!TIERS.includes(d), price:b.price, priceTouched:true, method:b.method || 'Cash', paid:b.paid !== false, start:b.startDate, note:b.note || '', lock:true, profiles:{ ...(b.profiles || {}) } };
+  } else {
+    const d = o.days || 30;
+    form = { id:null, clientId:o.clientId || '', service:o.service || 'netflix', days:d, custom:!TIERS.includes(d), price:'', priceTouched:false, method:o.method || 'Orange Money', paid:true, start:o.start || todayStr(), note:o.note || '', lock:!!o.clientId, newName:'', newPhone:'', profiles:{} };
+    form.price = priceFor(form.service, form.days);
+    autoPick(o.profiles);
+  }
   showSheet(subFormHTML());
 }
+function priceHintText() {
+  const f = form;
+  if (!(f.days > 0)) return '';
+  const m = (f.days / 30).toLocaleString('fr-FR', { maximumFractionDigits:2 });
+  return `${f.days} jours = ${m} mois × ${money(PRICES[f.service][1])} = ${money(priceFor(f.service, f.days))}`;
+}
+function refreshDerived() {
+  const f = form; if (!f) return;
+  const e = $('#endLabel'); if (e) e.textContent = fmtDate(addDays(f.start || todayStr(), f.days > 0 ? f.days : 0));
+  const h = $('#priceHint'); if (h) h.textContent = priceHintText();
+  document.querySelectorAll('[data-tp]').forEach((el) => { el.textContent = money(priceFor(el.dataset.tp, f.days)); });
+  const p = document.querySelector('[data-f="price"]'); if (p && !f.priceTouched) p.value = f.price;
+}
+function profilePickerHTML() {
+  const f = form, occ = formOcc();
+  return COMPONENTS[f.service].map((svc) => {
+    const ids = allProfiles(svc), sel = f.profiles[svc] || '';
+    const free = ids.filter((id) => !occ[id]).length;
+    const chips = ids.map((id) => {
+      const o = occ[id];
+      const sub = o ? (o._left < 0 ? 'à libérer' : o.clientName) : 'Libre';
+      return `<button class="pf ${sel === id ? 'on' : ''} ${o ? 'busy' : ''}" ${o ? 'disabled' : ''} data-act="pick-profile" data-svc="${svc}" data-v="${id}"><b>${esc(profName(id))}</b><small>${esc(sub)}</small></button>`;
+    }).join('');
+    return `<div class="field"><label>Profil ${SHORT[svc]} (${free} libre${free > 1 ? 's' : ''} sur ${ids.length})</label></div>
+      <div class="pfgrid">${chips}<button class="pf none ${sel === '' ? 'on' : ''}" data-act="pick-profile" data-svc="${svc}" data-v=""><b>Sans profil</b><small>&nbsp;</small></button></div>
+      ${free === 0 ? `<p class="hint" style="margin:-8px 0 14px;color:var(--warn)">Tous les profils ${SHORT[svc]} sont occupés.</p>` : ''}`;
+  }).join('');
+}
 function subFormHTML() {
-  const f = form, std = PRICES[f.service][f.months];
-  const end = addDays(f.start || todayStr(), DAYS[f.months]);
-  const c = clientById(f.clientId);
+  const f = form, c = clientById(f.clientId);
+  const end = addDays(f.start || todayStr(), f.days > 0 ? f.days : 0);
   const clientBlock = f.lock
     ? `<div class="field"><label>Client</label><div class="locked">${esc(c ? c.name : '')}</div></div>`
     : `<div class="field"><label>Client</label><select data-f="clientId"><option value="">Choisir un client…</option><option value="__new" ${f.clientId === '__new' ? 'selected' : ''}>➕ Nouveau client</option>${[...clients].sort((a, b) => a.name.localeCompare(b.name)).map((x) => `<option value="${x.id}" ${x.id === f.clientId ? 'selected' : ''}>${esc(x.name)}${x.phone ? ' (' + esc(x.phone) + ')' : ''}</option>`).join('')}</select></div>`
       + (f.clientId === '__new' ? `<div class="two"><div class="field"><label>Nom</label><input data-f="newName" value="${esc(f.newName)}" placeholder="Marie K." autocomplete="off"></div><div class="field"><label>Numéro WhatsApp</label><input data-f="newPhone" type="tel" value="${esc(f.newPhone)}" placeholder="081 234 5678"></div></div>` : '');
-  const tiles = Object.entries(SERVICES).map(([k, v]) => `<button class="tile ${f.service === k ? 'on' : ''}" style="--svc:${v.bg}" data-act="pick-service" data-v="${k}"><b>${v.label}</b><span>${money(PRICES[k][f.months])}</span></button>`).join('');
-  const segs = [1, 3, 6].map((m) => `<button class="seg ${f.months === m ? 'on' : ''}" data-act="pick-months" data-v="${m}">${m} mois<small>${DAYS[m]} jours</small></button>`).join('');
+  const tiles = Object.entries(SERVICES).map(([k, v]) => `<button class="tile ${f.service === k ? 'on' : ''}" style="--svc:${v.bg}" data-act="pick-service" data-v="${k}"><b>${v.label}</b><span data-tp="${k}">${money(priceFor(k, f.days))}</span></button>`).join('');
+  const segs = TIERS.map((d) => `<button class="seg ${!f.custom && f.days === d ? 'on' : ''}" data-act="pick-days" data-v="${d}">${d / 30} mois<small>${d} jours</small></button>`).join('')
+    + `<button class="seg ${f.custom ? 'on' : ''}" data-act="pick-days" data-v="custom">Autre<small>en jours</small></button>`;
+  const customBlock = f.custom ? `<div class="field"><label>Nombre de jours payés</label><input data-f="days" type="number" inputmode="numeric" min="1" value="${f.days || ''}" placeholder="ex. 240 pour 8 mois"></div>` : '';
   const methods = METHODS.map((m) => `<button class="chip ${f.method === m ? 'on' : ''}" data-act="pick-method" data-v="${m}">${m}</button>`).join('');
   return `<h3>${f.id ? "Modifier l'abonnement" : 'Nouvel abonnement'}</h3>
     ${clientBlock}
     <div class="field"><label>Service</label></div><div class="tiles">${tiles}</div>
-    <div class="field"><label>Durée</label></div><div class="segs">${segs}</div>
-    <div class="field"><label>Prix payé</label><input data-f="price" type="number" inputmode="numeric" min="0" value="${esc(f.price)}"><span class="hint">Tarif standard : ${money(std)}</span></div>
+    ${profilePickerHTML()}
+    <div class="field"><label>Durée</label></div><div class="segs four">${segs}</div>
+    ${customBlock}
+    <div class="field"><label>Somme à payer</label><input data-f="price" type="number" inputmode="numeric" min="0" value="${esc(f.price)}"><span class="hint" id="priceHint">${esc(priceHintText())}</span></div>
     <div class="field"><label>Moyen de paiement</label></div><div class="wrapchips">${methods}</div>
     <label class="check"><input type="checkbox" data-f="paid" ${f.paid ? 'checked' : ''}>Payé</label>
     <div class="field"><label>Début</label><input data-f="start" type="date" value="${esc(f.start)}"></div>
     <div class="endbox"><span>Fin de l'abonnement</span><b id="endLabel">${fmtDate(end)}</b></div>
-    <div class="field"><label>Note (profil, email du compte…)</label><input data-f="note" value="${esc(f.note)}" autocomplete="off"></div>
+    <div class="field"><label>Note (email du compte…)</label><input data-f="note" value="${esc(f.note)}" autocomplete="off"></div>
     <div class="stack"><button class="btn primary" data-act="save-sub">Enregistrer</button>
     ${f.id ? `<button class="btn danger" data-act="del-sub" data-sid="${f.id}">Supprimer cet abonnement</button>` : ''}
     <button class="btn" data-act="close-sheet">Annuler</button></div>`;
@@ -458,8 +687,9 @@ function subFormHTML() {
 async function saveSub() {
   const f = form; if (!f || f.saving) return;
   if (!f.clientId) return toast('Choisis un client');
+  if (!(f.days >= 1)) return toast('Indique le nombre de jours');
   const price = Number(f.price);
-  if (f.price === '' || !(price >= 0)) return toast('Prix invalide');
+  if (f.price === '' || !(price >= 0)) return toast('Somme invalide');
   if (!f.start) return toast('Indique la date de début');
   const newName = (f.newName || '').trim(), newPhone = (f.newPhone || '').trim();
   if (f.clientId === '__new' && (!newName || !newPhone)) return toast('Nom et numéro WhatsApp requis');
@@ -470,8 +700,10 @@ async function saveSub() {
       const ref = await db.collection('clients').add({ name:newName, phone:newPhone, note:'', createdAt:TS() });
       clientId = ref.id; clientName = newName;
     } else clientName = clientById(clientId).name;
-    const data = { clientId, clientName, service:f.service, months:f.months, price, method:f.method, paid:!!f.paid,
-      startDate:f.start, endDate:addDays(f.start, DAYS[f.months]), note:(f.note || '').trim() };
+    const profiles = {};
+    COMPONENTS[f.service].forEach((svc) => { if (f.profiles[svc]) profiles[svc] = f.profiles[svc]; });
+    const data = { clientId, clientName, service:f.service, days:f.days, months:Math.round(f.days / 30 * 100) / 100, price, method:f.method, paid:!!f.paid,
+      startDate:f.start, endDate:addDays(f.start, f.days), profiles, note:(f.note || '').trim() };
     if (f.id) await db.doc('subscriptions/' + f.id).update(data);
     else await db.collection('subscriptions').add({ ...data, archived:false, createdAt:TS() });
     closeSheet(); toast('Abonnement enregistré ✓');
@@ -539,10 +771,42 @@ document.addEventListener('click', async (e) => {
     case 'new-client': openClientForm(null); break;
     case 'edit-client': openClientForm(clientById(id)); break;
     case 'edit-sub': if (sub) openSubForm({ sub }); break;
-    case 'renew-sub': if (sub) openSubForm({ clientId:sub.clientId, service:sub.service, months:Number(sub.months), method:sub.method, note:sub.note, start: sub._left > 0 ? sub.endDate : todayStr() }); break;
-    case 'archive-sub': if (sub) { await db.doc('subscriptions/' + sid).update({ archived:true }); toast('Archivé (visible dans l\'historique)'); } break;
-    case 'pick-service': form.service = v; form.priceTouched = false; form.price = PRICES[v][form.months]; showSheet(subFormHTML()); break;
-    case 'pick-months': form.months = Number(v); form.priceTouched = false; form.price = PRICES[form.service][form.months]; showSheet(subFormHTML()); break;
+    case 'renew-sub': if (sub) openSubForm({ clientId:sub.clientId, service:sub.service, days:subDays(sub), method:sub.method, note:sub.note, profiles:sub.profiles || {}, start: sub._left > 0 ? sub.endDate : todayStr() }); break;
+    case 'archive-sub': if (sub) { await db.doc('subscriptions/' + sid).update({ archived:true }); toast(hasProf(sub) ? 'Profil libéré ✓' : 'Archivé (visible dans l\'historique)'); } break;
+    case 'fab': if (ui.tab === 'accounts') openAccForm(null); else openSubForm({ clientId: ui.detail || '' }); break;
+    case 'pick-service': form.service = v; form.priceTouched = false; form.price = priceFor(v, form.days); autoPick(form.profiles); showSheet(subFormHTML()); break;
+    case 'pick-days':
+      if (v === 'custom') form.custom = true; else { form.custom = false; form.days = Number(v); }
+      form.priceTouched = false; form.price = priceFor(form.service, form.days); showSheet(subFormHTML()); break;
+    case 'pick-profile': form.profiles[el.dataset.svc] = v; showSheet(subFormHTML()); break;
+    case 'open-profile': openProfileSheet(id); break;
+    case 'save-pname': savePname(id, false); break;
+    case 'reset-pname': savePname(id, true); break;
+    case 'goto-client': closeSheet(); ui.detail = id; render(); $('#detail').scrollTop = 0; break;
+    case 'sub-on-profile': { const svc = id.split('-')[0]; closeSheet(); openSubForm({ service:svc, profiles:{ [svc]:id } }); break; }
+    case 'free-profile': {
+      const o = subs.find((x) => x.id === sid);
+      if (o && (o._left >= 0 ? confirm("Cet abonnement n'est pas encore terminé. Libérer quand même ce profil ?") : true)) {
+        await db.doc('subscriptions/' + sid).update({ archived:true }); closeSheet(); toast('Profil libéré ✓');
+      }
+      break;
+    }
+    case 'new-acc': openAccForm(null); break;
+    case 'edit-acc': openAccForm(accounts.find((a) => a.id === id)); break;
+    case 'save-acc': saveAcc(); break;
+    case 'del-acc': if (confirm('Supprimer ce compte ?')) { await db.doc('accounts/' + id).delete(); closeSheet(); toast('Compte supprimé'); } break;
+    case 'renew-acc': {
+      const a = accounts.find((x) => x.id === id), nx = a && accNext(a);
+      if (a && nx && confirm(`Tu as payé ${a.name} ? La nouvelle fin sera le ${fmtDate(nx)}.`)) { await db.doc('accounts/' + id).update({ endDate:nx }); toast('Renouvelé jusqu\'au ' + fmtDate(nx) + ' ✓'); }
+      break;
+    }
+    case 'seed-acc': {
+      const batch = db.batch();
+      [['Netflix 1', 'netflix'], ['Netflix 2', 'netflix'], ['Netflix 3', 'netflix'], ['Prime Video', 'prime'], ['Crunchyroll', 'crunchyroll']]
+        .forEach(([name, service]) => batch.set(db.collection('accounts').doc(), { name, service, endDate:'', cycleDays:30, note:'', createdAt:TS() }));
+      await batch.commit(); toast('5 comptes créés. Indique la date de fin de chacun.');
+      break;
+    }
     case 'pick-method': form.method = v; showSheet(subFormHTML()); break;
     case 'save-sub': saveSub(); break;
     case 'save-client': saveClient(); break;
@@ -570,15 +834,19 @@ document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.dataset.f === 'q') { ui.q = t.value; $('#clist').innerHTML = clientListHTML(); return; }
   if (t.dataset.c && cform) { cform[t.dataset.c] = t.value; return; }
+  if (t.dataset.a && aform) { aform[t.dataset.a] = t.value; const h = $('#accNext'); if (h) h.textContent = accHint(aform); return; }
   if (!t.dataset.f || !form || t.tagName === 'SELECT') return;
-  form[t.dataset.f] = t.type === 'checkbox' ? t.checked : t.value;
-  if (t.dataset.f === 'price') form.priceTouched = true;
-  if (t.dataset.f === 'start' && form.start) $('#endLabel').textContent = fmtDate(addDays(form.start, DAYS[form.months]));
+  const k = t.dataset.f;
+  if (k === 'days') { form.days = Math.max(0, Math.round(Number(t.value) || 0)); form.priceTouched = false; form.price = priceFor(form.service, form.days); refreshDerived(); return; }
+  form[k] = t.type === 'checkbox' ? t.checked : t.value;
+  if (k === 'price') form.priceTouched = true;
+  if (k === 'start') refreshDerived();
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.tagName === 'SELECT' && t.dataset.f === 'clientId' && form) { form.clientId = t.value; showSheet(subFormHTML()); }
-  if (t.dataset.f === 'start' && form && form.start) $('#endLabel').textContent = fmtDate(addDays(form.start, DAYS[form.months]));
+  if (t.tagName === 'SELECT' && t.dataset.f === 'clientId' && form) { form.clientId = t.value; autoPick(form.profiles); showSheet(subFormHTML()); return; }
+  if (t.dataset.f === 'start' && form) { form.start = t.value; refreshDerived(); }
+  if (t.dataset.a && aform) { aform[t.dataset.a] = t.value; const h = $('#accNext'); if (h) h.textContent = accHint(aform); }
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
@@ -594,9 +862,11 @@ function start() {
   const onErr = (err) => { console.error(err); toast('Accès refusé : vérifie les règles Firestore et ton email'); };
   unsubs.push(db.collection('clients').onSnapshot((s) => { clients = s.docs.map((d) => ({ id:d.id, ...d.data() })); loaded.c = true; render(); }, onErr));
   unsubs.push(db.collection('subscriptions').onSnapshot((s) => { subs = s.docs.map((d) => ({ id:d.id, ...d.data() })); loaded.s = true; render(); }, onErr));
+  unsubs.push(db.collection('accounts').onSnapshot((s) => { accounts = s.docs.map((d) => ({ id:d.id, ...d.data() })); render(); }, onErr));
+  unsubs.push(db.doc('settings/profiles').onSnapshot((d) => { profileNames = (d.exists && d.data().names) || {}; render(); }, onErr));
   unsubs.push(db.doc('settings/app').onSnapshot((d) => { template = (d.exists && d.data().template) || DEFAULT_TEMPLATE; if (ui.tab === 'settings' && document.activeElement.id !== 'tpl') render(); }, onErr));
 }
-function stop() { unsubs.forEach((u) => u()); unsubs = []; clients = []; subs = []; loaded = { c:false, s:false }; ui.detail = null; closeSheet(); }
+function stop() { unsubs.forEach((u) => u()); unsubs = []; clients = []; subs = []; accounts = []; profileNames = {}; loaded = { c:false, s:false }; ui.detail = null; closeSheet(); }
 
 auth.onAuthStateChanged((u) => {
   $('#boot').hidden = true;
