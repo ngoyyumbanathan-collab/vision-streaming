@@ -1,11 +1,13 @@
 // Lancé chaque matin par GitHub Actions. Envoie des notifications push pour :
 //  1. les abonnements clients qui finissent aujourd'hui ou demain (avec le profil)
-//  2. les profils à libérer (client qui n'a pas renouvelé, la veille)
+//  2. les clients retirés automatiquement de leur profil (pas renouvelé depuis 1 jour)
+//     + archivage automatique et silencieux des clients non renouvelés depuis 3 jours
 //  3. tes propres comptes à renouveler (2 jours avant, puis chaque jour de retard)
 const admin = require('firebase-admin');
 
 const DAYS_TO_NOTIFY = [0, 1];   // 0 = aujourd'hui, 1 = demain. Ajoute 3 pour être prévenu 3 jours avant.
-const DAYS_TO_FREE = [-1];       // -1 = la fin était hier et le client n'a pas renouvelé
+const FREE_AFTER_DAYS = 1;       // pas renouvelé depuis 1 jour : on le retire de son profil et on te prévient
+const ARCHIVE_AFTER_DAYS = 3;    // pas renouvelé depuis 3 jours : archivé automatiquement, sans notification
 const ACCOUNT_WARN_DAYS = 2;     // mes comptes : prévenir dès 2 jours avant la fin
 const ACCOUNT_LATE_MAX = 10;     // puis chaque jour de retard, jusqu'à 10 jours
 const TIMEZONE = 'Africa/Kinshasa';
@@ -51,7 +53,7 @@ async function main() {
 
   const pushDoc = await db.doc('settings/push').get();
   tokens = (pushDoc.exists && pushDoc.data().tokens) || [];
-  if (!tokens.length) { console.log('Aucun appareil enregistré pour les notifications.'); return; }
+  if (!tokens.length) console.log('Aucun appareil enregistré pour les notifications (le ménage des profils est fait quand même).');
 
   const names = ((await db.doc('settings/profiles').get()).data() || {}).names || {};
   const profName = (id) => names[id] || `${PREFIX[id.split('-')[0]]} ${id.split('-')[1]}`;
@@ -63,6 +65,25 @@ async function main() {
     const renewed = subs.some((o) => o.id !== s.id && o.clientId === s.clientId && o.service === s.service && o.endDate > s.endDate);
     return !renewed;
   });
+
+  // 0. Ménage automatique : retire du profil (J+1) et archive (J+3) les clients qui n'ont pas renouvelé
+  const freedNow = [], updates = [];
+  for (const s of pending) {
+    const left = diffDays(today, s.endDate);
+    const parts = profParts(s);
+    const arch = left <= -ARCHIVE_AFTER_DAYS, free = left <= -FREE_AFTER_DAYS && parts.length > 0;
+    if (!arch && !free) continue;
+    const upd = {};
+    if (parts.length) { freedNow.push(`${s.clientName} retiré de ${parts.join(' + ')}`); upd.profiles = {}; upd.freedProfiles = { ...s.profiles }; upd.freedAt = today; }
+    if (arch) { upd.archived = true; upd.archivedAt = today; }
+    updates.push([s.id, upd]);
+  }
+  for (let i = 0; i < updates.length; i += 400) {
+    const batch = db.batch();
+    updates.slice(i, i + 400).forEach(([id, upd]) => batch.update(db.collection('subscriptions').doc(id), upd));
+    await batch.commit();
+  }
+  if (updates.length) console.log(`Ménage : ${updates.length} abonnement(s) mis à jour, ${freedNow.length} profil(s) libéré(s).`);
 
   // 1. Abonnements clients qui finissent aujourd'hui ou demain
   for (const d of DAYS_TO_NOTIFY) {
@@ -80,15 +101,12 @@ async function main() {
     });
   }
 
-  // 2. Profils à libérer (le client n'a pas renouvelé)
-  for (const d of DAYS_TO_FREE) {
-    const group = pending.filter((s) => diffDays(today, s.endDate) === d && profParts(s).length);
-    if (!group.length) continue;
-    const n = group.reduce((a, s) => a + profParts(s).length, 0);
-    const body = group.map((s) => `${profParts(s).join(' + ')} : ${s.clientName}`).join('; ');
+  // 2. Places libérées (clients retirés de leur profil)
+  if (freedNow.length) {
+    const n = freedNow.length;
     await send({
-      title: `🔓 ${n} profil${n > 1 ? 's' : ''} à libérer`,
-      body: cut(body, 180), url: appUrl + '?tab=profiles', tag: 'liberer'
+      title: `🔓 ${n} place${n > 1 ? 's' : ''} libérée${n > 1 ? 's' : ''}`,
+      body: cut(freedNow.join('; '), 180), url: appUrl + '?tab=profiles', tag: 'liberer'
     });
   }
 
