@@ -12,6 +12,13 @@ const ACCOUNT_WARN_DAYS = 2;     // mes comptes : prévenir dès 2 jours avant l
 const ACCOUNT_LATE_MAX = 10;     // puis chaque jour de retard, jusqu'à 10 jours
 const TIMEZONE = 'Africa/Kinshasa';
 
+// Page de paiement de chaque service (un lien personnalisé enregistré dans « Mes comptes » est prioritaire)
+const PAY_URLS = {
+  netflix: 'https://www.netflix.com/youraccount',
+  prime: 'https://www.primevideo.com/settings',
+  crunchyroll: 'https://www.crunchyroll.com/account/membership'
+};
+
 const LABEL = { netflix: 'Netflix', prime: 'Prime Video', crunchyroll: 'Crunchyroll', combo: 'Combo Netflix + Prime' };
 const SHORT = { netflix: 'Netflix', prime: 'Prime Video', crunchyroll: 'Crunchyroll' };
 const PREFIX = { netflix: 'Vision', prime: 'Prime', crunchyroll: 'OTW' };
@@ -117,12 +124,14 @@ async function main() {
     .map((a) => ({ a, d: diffDays(today, a.endDate) }))
     .filter(({ d }) => d <= ACCOUNT_WARN_DAYS && d >= -ACCOUNT_LATE_MAX)
     .sort((x, y) => x.d - y.d);
-  if (due.length) {
-    const n = due.length;
-    const body = due.map(({ a, d }) => `${a.name} : ${d < 0 ? `en retard de ${-d} j` : d === 0 ? "aujourd'hui" : d === 1 ? 'demain' : `dans ${d} jours`}`).join('; ');
+  // Une notification par compte : un tap ouvre directement la page de paiement
+  for (const { a, d } of due) {
+    const quand = d < 0 ? (d === -1 ? 'a expiré hier' : `est en retard de ${-d} jours`) : d === 0 ? "se renouvelle aujourd'hui" : d === 1 ? 'se renouvelle demain' : `se renouvelle dans ${d} jours`;
     await send({
-      title: `💳 ${n} compte${n > 1 ? 's' : ''} à renouveler`,
-      body: cut(body, 180), url: appUrl + '?tab=accounts', tag: 'comptes'
+      title: `💳 ${a.name} ${quand}`,
+      body: `Fin le ${a.endDate}. Touche pour payer.`,
+      url: a.payUrl || PAY_URLS[a.service] || (appUrl + '?tab=accounts'),
+      tag: 'compte-' + a.id
     });
   }
 
