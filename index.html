@@ -167,7 +167,7 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
 .pf{padding:9px 8px;border-radius:12px;background:var(--s2);border:1.5px solid var(--line);text-align:left;display:flex;flex-direction:column;min-width:0;color:var(--tx)}
 .pf b{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pf small{font-size:11.5px;color:var(--ok);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pf.busy{opacity:.45} .pf.busy small,.pf.none small{color:var(--mut)}
+.pf.busy small,.pf.none small{color:var(--mut)}
 .pf.on{opacity:1;border-color:#4b6bff;box-shadow:inset 0 0 0 1px #4b6bff}
 .pfsum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 6px}
 .pfsum div{padding:12px;border-radius:14px;background:var(--svc);color:#fff}
@@ -181,6 +181,19 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
 .pt.warn{border-color:rgba(255,178,31,.65)} .pt.warn em{color:var(--warn)}
 .pt.bad{border-color:rgba(255,74,92,.7)} .pt.bad em{color:var(--bad)}
 .svch{margin:20px 0 10px}
+.pick{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;padding:11px 13px;border-radius:12px;background:var(--s2);border:1.5px solid var(--line);margin-bottom:7px;color:var(--tx)}
+.pick b{font-size:16px}
+.pick small{color:var(--mut);font-size:13px;font-weight:500}
+.pick.new{border-style:dashed;border-color:#4b6bff}
+.pick.contact small::before{content:"📇 ";}
+.pickrow{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.cres{max-height:240px;overflow-y:auto;margin-bottom:12px}
+.chosen{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.chosen small{display:block;color:var(--mut);font-weight:500}
+.occrow{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:8px;background:var(--s2);border-radius:12px}
+.occrow .main{flex:1;min-width:0;cursor:pointer}
+.occrow strong{display:block}
+.occrow small{color:var(--mut);font-size:13px}
 #toast{position:fixed;left:50%;bottom:calc(96px + var(--sab));transform:translateX(-50%);background:#fff;color:#0b0d14;padding:11px 18px;border-radius:99px;font-weight:700;font-size:14.5px;z-index:80;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 </style>
@@ -218,6 +231,7 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
   <div id="detail" class="page" hidden></div>
   <div id="sheet" class="sheetwrap" hidden><div class="backdrop" data-act="close-sheet"></div><div class="sheet" id="sheetBody"></div></div>
 </div>
+<input type="file" id="vcf" accept=".vcf,text/vcard,text/x-vcard,text/directory" multiple hidden>
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -241,6 +255,8 @@ const PRICES = {
   combo:       { 1:18000, 3:54000,  6:108000 }
 };
 const TIERS = [30, 90, 180]; // paliers 1, 3 et 6 mois
+const FREE_AFTER_DAYS = 1;    // le client n'a pas renouvelé depuis 1 jour : on le retire de son profil
+const ARCHIVE_AFTER_DAYS = 3; // depuis 3 jours : on l'archive automatiquement
 const METHODS = ['Illicocash','Orange Money','Airtel Money','Cash','Autre'];
 const DEFAULT_TEMPLATE = "Bonjour {nom} 👋\nVotre abonnement {service} chez Vision Streaming {quand} (le {date}).\nSouhaitez-vous le renouveler ? Merci !";
 
@@ -276,9 +292,71 @@ const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 const standalone = () => navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, ms = 2600) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+/* Recherche : sans accents ni majuscules, nom ou numéro */
+const norm = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const digitsOf = (s) => String(s || '').replace(/\D/g, '');
+function matchQ(q, texts, phone) {
+  const t = String(q || '').trim(), nq = norm(t);
+  if (!nq) return true;
+  if (texts.some((x) => norm(x).includes(nq))) return true;
+  if (phone && /^[\d\s+().-]+$/.test(t) && digitsOf(t).length >= 2) return waNumber(phone).includes(waNumber(t));
+  return false;
+}
+const searchBox = (ph) => `<div class="field" style="margin:10px 0 12px"><input id="q" data-f="q" type="search" placeholder="${ph}" value="${esc(ui.q)}" autocomplete="off"></div>`;
+const byName = (a, b) => a.name.localeCompare(b.name);
+
+/* Contacts du téléphone (importés d'un fichier .vcf, gardés sur cet appareil) */
+const CONTACTS_KEY = 'visionContacts';
+const canPickContact = () => 'contacts' in navigator && 'ContactsManager' in window;
+function loadContacts() { try { return JSON.parse(localStorage.getItem(CONTACTS_KEY) || '[]'); } catch (e) { return []; } }
+let contacts = loadContacts();
+function saveContacts() { try { localStorage.setItem(CONTACTS_KEY, JSON.stringify(contacts)); return true; } catch (e) { return false; } }
+function parseVcf(text) {
+  const out = [], un = (v) => v.replace(/\\([,;])/g, '$1').replace(/\\n/gi, ' ').trim();
+  text.replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split(/BEGIN:VCARD/i).slice(1).forEach((card) => {
+    let name = '', org = ''; const tels = [];
+    card.split('\n').forEach((line) => {
+      const m = line.match(/^(?:[\w-]+\.)?([A-Za-z-]+)(?:;[^:]*)?:(.*)$/); if (!m) return;
+      const key = m[1].toUpperCase(), val = m[2].trim();
+      if (key === 'FN' && !name) name = un(val);
+      else if (key === 'N' && !name) { const p = val.split(';'); name = un([p[1], p[0]].filter(Boolean).join(' ')); }
+      else if (key === 'ORG' && !org) org = un(val.split(';')[0]);
+      else if (key === 'TEL') tels.push(val.replace(/^tel:/i, '').trim());
+    });
+    tels.forEach((t) => { if (digitsOf(t).length >= 6) out.push({ name: name || org || t, phone: t }); });
+  });
+  return out;
+}
+async function importVcf(files) {
+  let added = 0;
+  try {
+    const known = new Map(contacts.map((c) => [waNumber(c.phone), c]));
+    for (const f of files) {
+      parseVcf(await f.text()).forEach((c) => { const k = waNumber(c.phone); if (!known.has(k)) added++; known.set(k, c); });
+    }
+    contacts = [...known.values()].sort(byName);
+    if (!saveContacts()) return toast('Mémoire de l\'appareil pleine, import impossible');
+  } catch (err) { console.error(err); return toast('Fichier illisible'); }
+  toast(`${contacts.length} contact${contacts.length > 1 ? 's' : ''} disponibles (${added} nouveau${added > 1 ? 'x' : ''}) ✓`);
+  if (form) showSheet(subFormHTML()); else if (cform) showSheet(clientFormHTML()); else render();
+}
+async function pickDeviceContact() {
+  try {
+    const r = await navigator.contacts.select(['name', 'tel'], { multiple:false });
+    if (r && r[0]) applyContact(((r[0].name || [])[0] || '').trim(), ((r[0].tel || [])[0] || '').trim());
+  } catch (err) { console.error(err); toast('Contacts indisponibles sur cet appareil'); }
+}
+function applyContact(name, phone) {
+  if (form) {
+    const ex = phone && clients.find((c) => c.phone && waNumber(c.phone) === waNumber(phone));
+    if (ex) { form.clientId = ex.id; autoPick(form.profiles); toast('Ce client existe déjà : ' + ex.name); }
+    else { form.clientId = '__new'; form.newName = name; form.newPhone = phone; }
+    showSheet(subFormHTML());
+  } else if (cform) { cform.name = name; cform.phone = phone; cform.cq = ''; showSheet(clientFormHTML()); }
 }
 
 /* ============ État ============ */
@@ -286,7 +364,8 @@ const ui = { tab:'subs', status:'all', service:'all', q:'', detail:null };
 let clients = [], subs = [], accounts = [], profileNames = {}, template = DEFAULT_TEMPLATE;
 let loaded = { c:false, s:false };
 let unsubs = [];
-let form = null, cform = null, aform = null;
+let form = null, cform = null, aform = null, bform = null;
+const pendingAuto = new Set();
 const params = new URLSearchParams(location.search);
 if (params.get('filter') === 'soon') ui.status = 'soon';
 if (['accounts', 'profiles', 'clients'].includes(params.get('tab'))) ui.tab = params.get('tab');
@@ -309,10 +388,36 @@ const allProfiles = (svc) => Array.from({ length:PROFILE_SETS[svc].count }, (_, 
 const hasProf = (s) => Object.values(s.profiles || {}).some(Boolean);
 const profLabel = (s) => Object.values(s.profiles || {}).filter(Boolean).map(profName).join(' + ');
 const profTag = (s) => hasProf(s) ? `<span class="prof">${esc(profLabel(s))}</span>` : '';
+// Un profil peut avoir plusieurs clients : occ[id] = liste d'abonnements (hors expirés, déjà retirés)
 function occupancy() {
   const occ = {};
-  subs.filter(isVisible).forEach((s) => Object.values(s.profiles || {}).forEach((id) => { if (id) occ[id] = s; }));
+  subs.filter((s) => isVisible(s) && s._left >= 0).forEach((s) => Object.values(s.profiles || {}).forEach((id) => { if (id) (occ[id] = occ[id] || []).push(s); }));
   return occ;
+}
+const freedLabel = (s) => Object.values(s.freedProfiles || {}).filter(Boolean).map(profName).join(' + ');
+function freedBanner() {
+  const t = todayStr();
+  const rec = subs.filter((s) => s.freedAt && s.freedProfiles && freedLabel(s) && diffDays(s.freedAt, t) <= 2);
+  if (!rec.length) return '';
+  return `<div class="banner">🔓 Places libérées : ${rec.map((s) => `${esc(s.clientName)} retiré de ${esc(freedLabel(s))}`).join(', ')}</div>`;
+}
+/* Retire automatiquement les clients qui n'ont pas renouvelé (profil libéré à J+1, archivage à J+3) */
+function autoMaintain() {
+  const t = todayStr(), batch = db.batch(), freed = []; let n = 0;
+  subs.forEach((s) => {
+    if (!s._current || s.archived || pendingAuto.has(s.id)) return;
+    const arch = s._left <= -ARCHIVE_AFTER_DAYS, free = s._left <= -FREE_AFTER_DAYS && hasProf(s);
+    if (!arch && !free) return;
+    const upd = {};
+    if (hasProf(s)) { upd.profiles = {}; upd.freedProfiles = { ...s.profiles }; upd.freedAt = t; freed.push(`${s.clientName} (${profLabel(s)})`); }
+    if (arch) { upd.archived = true; upd.archivedAt = t; }
+    batch.update(db.doc('subscriptions/' + s.id), upd); pendingAuto.add(s.id); n++;
+  });
+  if (!n) return;
+  batch.commit().then(() => {
+    if (freed.length === 1) toast(`🔓 ${freed[0].replace(' (', ' retiré de ').replace(/\)$/, '')} : la place est libérée`, 6000);
+    else if (freed.length) toast(`🔓 ${freed.length} clients retirés de leurs profils : places libérées`, 6000);
+  }).catch((err) => { console.error(err); pendingAuto.clear(); });
 }
 
 /* ----- Durées et prix ----- */
@@ -379,12 +484,14 @@ const WA_ICON = '<svg viewBox="0 0 24 24"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14
 const waBtn = (s) => { const h = waHref(s); return h ? `<a class="wa" href="${h}" target="_blank" rel="noopener" aria-label="Écrire sur WhatsApp">${WA_ICON}</a>` : `<span class="wa off">${WA_ICON}</span>`; };
 
 /* ============ Vues ============ */
+const LISTS = {};
 function render() {
   if (!auth.currentUser) return;
   if (!(loaded.c && loaded.s)) { $('#view').innerHTML = '<div class="empty">Chargement…</div>'; return; }
   enrich();
+  autoMaintain();
   const searching = document.activeElement && document.activeElement.id === 'q';
-  if (searching && ui.tab === 'clients') { $('#clist').innerHTML = clientListHTML(); }
+  if (searching && LISTS[ui.tab] && $('#clist')) { $('#clist').innerHTML = LISTS[ui.tab](); }
   else $('#view').innerHTML = ({ subs:viewSubs, clients:viewClients, profiles:viewProfiles, accounts:viewAccounts, settings:viewSettings })[ui.tab]();
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === ui.tab));
   $('.fab').hidden = ui.tab === 'settings';
@@ -403,22 +510,31 @@ function subRow(s) {
     ${waBtn(s)}</div>`;
 }
 
+function subsListHTML() {
+  const all = subs.filter(isVisible);
+  let list = all.filter((s) => (ui.status === 'all' || statusOf(s) === ui.status) && (ui.service === 'all' || s.service === ui.service) && matchSub(s, ui.q));
+  list.sort((a, b) => a.endDate.localeCompare(b.endDate) || a.clientName.localeCompare(b.clientName));
+  return list.length ? list.map(subRow).join('') : `<div class="empty">${all.length ? 'Aucun abonnement trouvé.' : 'Aucun abonnement pour le moment.<br>Appuie sur + pour ajouter le premier.'}</div>`;
+}
 function viewSubs() {
   const all = subs.filter(isVisible);
   const n = { soon:0, expired:0, active:0 };
   all.forEach((s) => n[statusOf(s)]++);
-  let list = all.filter((s) => (ui.status === 'all' || statusOf(s) === ui.status) && (ui.service === 'all' || s.service === ui.service));
-  list.sort((a, b) => a.endDate.localeCompare(b.endDate) || a.clientName.localeCompare(b.clientName));
   const stat = (k, cls, label) => `<button class="stat ${cls} ${ui.status === k ? 'on' : ''}" data-act="status" data-v="${ui.status === k ? 'all' : k}"><b>${n[k]}</b><span>${label}</span></button>`;
   const chip = (k, label, dot) => `<button class="chip ${ui.service === k ? 'on' : ''}" data-act="service" data-v="${k}">${dot ? `<i style="background:${dot}"></i>` : ''}${label}</button>`;
-  return `${accBanner()}<div class="stats">${stat('soon','warn','Finissent bientôt')}${stat('expired','bad','Expirés')}${stat('active','ok','En cours')}</div>
+  return `${accBanner()}${freedBanner()}<div class="stats">${stat('soon','warn','Finissent bientôt')}${stat('expired','bad','Expirés')}${stat('active','ok','En cours')}</div>
     <div class="chips">${chip('all','Tous')}${Object.entries(SERVICES).map(([k, v]) => chip(k, v.label.replace('Combo Netflix + Prime','Combo'), v.bg)).join('')}</div>
-    ${list.length ? list.map(subRow).join('') : `<div class="empty">${all.length ? 'Aucun abonnement dans ce filtre.' : 'Aucun abonnement pour le moment.<br>Appuie sur + pour ajouter le premier.'}</div>`}`;
+    ${searchBox('Chercher un client, un numéro ou un profil')}<div id="clist">${subsListHTML()}</div>`;
+}
+const matchClient = (c, q) => matchQ(q, [c.name, c.note || ''], c.phone);
+function matchSub(s, q) {
+  if (!String(q || '').trim()) return true;
+  const c = clientById(s.clientId);
+  return matchQ(q, [s.clientName, (SERVICES[s.service] || {}).label || '', profLabel(s), s.note || ''], c && c.phone);
 }
 
 function clientListHTML() {
-  const q = ui.q.trim().toLowerCase();
-  const list = clients.filter((c) => !q || c.name.toLowerCase().includes(q) || String(c.phone || '').includes(q)).sort((a, b) => a.name.localeCompare(b.name));
+  const list = clients.filter((c) => matchClient(c, ui.q)).sort(byName);
   if (!list.length) return `<div class="empty">${clients.length ? 'Aucun client trouvé.' : 'Aucun client pour le moment.'}</div>`;
   return list.map((c) => {
     const cur = subs.filter((s) => s.clientId === c.id && isVisible(s));
@@ -428,7 +544,7 @@ function clientListHTML() {
   }).join('');
 }
 function viewClients() {
-  return `<div class="field" style="margin-top:10px"><input id="q" data-f="q" type="search" placeholder="Chercher un nom ou un numéro" value="${esc(ui.q)}"></div>
+  return `${searchBox('Chercher un nom ou un numéro')}
     <button class="btn small" style="margin-bottom:14px" data-act="new-client">Ajouter un client</button>
     <div id="clist">${clientListHTML()}</div>`;
 }
@@ -441,13 +557,15 @@ function subCard(s, old) {
   return `<div class="sub ${old ? 'old' : ''}" style="--svc:${sv.bg}">
     <div class="top"><span class="badge" style="--svc:${sv.bg}">${sv.label}</span>${pill}</div>
     <div class="dates">${fmtDate(s.startDate)} → ${fmtDate(s.endDate)}</div>
-    <div class="info">${profTag(s)}<span>${durLabel(s)}</span><span>${money(s.price)}</span><span>${esc(s.method || '')}</span>${s.paid === false ? '<span class="unpaid">Non payé</span>' : ''}</div>
+    <div class="info">${profTag(s)}<span>${durLabel(s)}${Number(s.bonusDays) > 0 ? ` <b style="color:var(--ok)">+ ${Number(s.bonusDays)} j offerts</b>` : ''}</span><span>${money(s.price)}</span><span>${esc(s.method || '')}</span>${s.paid === false ? '<span class="unpaid">Non payé</span>' : ''}</div>
     ${s.note ? `<div class="info" style="margin-top:4px"><span>${esc(s.note)}</span></div>` : ''}
+    ${s.freedAt && !hasProf(s) && freedLabel(s) ? `<div class="info" style="margin-top:4px"><span>🔓 Retiré de ${esc(freedLabel(s))} le ${fmtDate(s.freedAt)}</span></div>` : ''}
     <div class="acts">
       ${cur ? `<button class="btn small primary" data-act="renew-sub" data-sid="${s.id}">Renouveler</button>` : ''}
+      ${cur && !s.archived ? `<button class="btn small" data-act="bonus-sub" data-sid="${s.id}">+ Jours de non-service</button>` : ''}
       ${cur && !s.archived ? waBtn(s).replace('class="wa"', 'class="wa" style="width:40px;height:40px"') : ''}
       <button class="btn small" data-act="edit-sub" data-sid="${s.id}">Modifier</button>
-      ${cur && !s.archived && s._left < 0 ? `<button class="btn small" data-act="archive-sub" data-sid="${s.id}">${hasProf(s) ? 'Libérer le profil' : 'Archiver'}</button>` : ''}
+      ${cur && !s.archived && s._left < 0 ? `<button class="btn small" data-act="archive-sub" data-sid="${s.id}">Archiver</button>` : ''}
     </div></div>`;
 }
 
@@ -476,42 +594,46 @@ function renderDetail() {
   el.hidden = false; el.scrollTop = keep;
 }
 
-function viewProfiles() {
-  const occ = occupancy();
-  const free = (svc) => allProfiles(svc).filter((id) => !occ[id]).length;
-  const sum = Object.keys(PROFILE_SETS).map((svc) => `<div style="--svc:${SERVICES[svc].bg}"><b>${free(svc)}</b><span>${SHORT[svc]}, libre${free(svc) > 1 ? 's' : ''}</span></div>`).join('');
-  const toFree = subs.filter((s) => isVisible(s) && hasProf(s) && s._left < 0);
-  const banner = toFree.length ? `<div class="banner bad">🔓 À libérer : ${toFree.map((s) => `${esc(profLabel(s))} (${esc(s.clientName)})`).join(', ')}</div>` : '';
-  const noProf = subs.filter((s) => isVisible(s) && !hasProf(s)).sort((a, b) => a.endDate.localeCompare(b.endDate));
+function profilesListHTML() {
+  const occ = occupancy(), q = ui.q;
+  const noProf = subs.filter((s) => isVisible(s) && !hasProf(s) && matchSub(s, q)).sort((a, b) => a.endDate.localeCompare(b.endDate));
   const noProfHTML = noProf.length
     ? `<h2>Abonnements sans profil (${noProf.length})</h2>` + noProf.map((s) => `<div class="client-line" data-act="edit-sub" data-sid="${s.id}"><div class="main"><strong>${esc(s.clientName)}</strong><small>${(SERVICES[s.service] || {}).label}, fin le ${fmtDate(s.endDate)}</small></div><span class="pill warn">Choisir un profil</span></div>`).join('')
     : '';
   const sections = Object.keys(PROFILE_SETS).map((svc) => {
-    const tiles = allProfiles(svc).map((id) => {
-      const o = occ[id]; let cls = 'free', l2 = '&nbsp;', l3 = 'Libre';
-      if (o) {
-        const st = statusOf(o);
-        cls = st === 'expired' ? 'bad' : st === 'soon' ? 'warn' : '';
-        l2 = esc(o.clientName);
-        l3 = st === 'expired' ? 'À libérer' : `Jusqu'au ${fmtShort(o.endDate)}`;
+    const ids = allProfiles(svc).filter((id) => !String(q).trim() || matchQ(q, [profName(id)]) || (occ[id] || []).some((o) => matchSub(o, q)));
+    if (!ids.length) return '';
+    const tiles = ids.map((id) => {
+      const os = occ[id] || []; let cls = 'free', l2 = '&nbsp;', l3 = 'Libre';
+      if (os.length) {
+        cls = os.some((o) => statusOf(o) === 'soon') ? 'warn' : '';
+        l2 = os.length === 1 ? esc(os[0].clientName) : `${esc(os[0].clientName)} +${os.length - 1}`;
+        l3 = os.length === 1 ? `Jusqu'au ${fmtShort(os[0].endDate)}` : `${os.length} clients`;
       }
       return `<button class="pt ${cls}" data-act="open-profile" data-id="${id}"><b>${esc(profName(id))}</b><span>${l2}</span><em>${l3}</em></button>`;
     }).join('');
     return `<h2 class="svch"><span class="badge" style="--svc:${SERVICES[svc].bg}">${SHORT[svc]}</span></h2><div class="pfgrid">${tiles}</div>`;
   }).join('');
-  return `<div class="pfsum">${sum}</div>${banner}${noProfHTML}${sections}<p class="note">Touche un profil pour changer son nom (par exemple un prénom), voir son client ou le libérer.</p>`;
+  return `${noProfHTML}${sections || '<div class="empty">Aucun profil trouvé.</div>'}`;
+}
+function viewProfiles() {
+  const occ = occupancy();
+  const free = (svc) => allProfiles(svc).filter((id) => !(occ[id] || []).length).length;
+  const sum = Object.keys(PROFILE_SETS).map((svc) => `<div style="--svc:${SERVICES[svc].bg}"><b>${free(svc)}</b><span>${SHORT[svc]}, libre${free(svc) > 1 ? 's' : ''}</span></div>`).join('');
+  return `<div class="pfsum">${sum}</div>${freedBanner()}${searchBox('Chercher un profil ou un client')}<div id="clist">${profilesListHTML()}</div>
+    <p class="note">Plusieurs clients peuvent partager un profil. Touche un profil pour changer son nom, voir ses clients, en retirer un ou en ajouter un. Un client qui n'a pas renouvelé est retiré de son profil automatiquement après 1 jour, et archivé après 3 jours.</p>`;
 }
 
 function openProfileSheet(id) {
-  const svc = id.split('-')[0], o = occupancy()[id];
+  const svc = id.split('-')[0], os = (occupancy()[id] || []).slice().sort((a, b) => a.clientName.localeCompare(b.clientName));
+  const rows = os.map((o) => `<div class="occrow"><div class="main" data-act="goto-client" data-id="${o.clientId}"><strong>${esc(o.clientName)}</strong><small>${(SERVICES[o.service] || {}).label}, jusqu'au ${fmtDate(o.endDate)}</small></div><button class="btn small" data-act="remove-from-profile" data-sid="${o.id}" data-id="${id}">Retirer</button></div>`).join('');
   showSheet(`<h3>${esc(profName(id))}</h3>
-    <p class="note" style="margin-top:-8px">${SHORT[svc]}${o ? `. Occupé par ${esc(o.clientName)}, jusqu'au ${fmtDate(o.endDate)}.` : '. Ce profil est libre.'}</p>
-    <div class="field"><label>Nom du profil (par exemple un prénom)</label><input id="pname" value="${esc(profName(id))}" autocomplete="off"></div>
+    <p class="note" style="margin-top:-8px">${SHORT[svc]}. ${os.length ? `${os.length} client${os.length > 1 ? 's' : ''} sur ce profil.` : 'Ce profil est libre.'}</p>
+    ${rows}
+    <div class="field" style="margin-top:12px"><label>Nom du profil (par exemple un prénom)</label><input id="pname" value="${esc(profName(id))}" autocomplete="off"></div>
     <div class="stack">
       <button class="btn primary" data-act="save-pname" data-id="${id}">Enregistrer le nom</button>
-      ${o ? `<button class="btn" data-act="goto-client" data-id="${o.clientId}">Voir ${esc(o.clientName)}</button>
-        <button class="btn" data-act="free-profile" data-sid="${o.id}">Libérer ce profil</button>`
-        : `<button class="btn" data-act="sub-on-profile" data-id="${id}">Ajouter un abonnement sur ce profil</button>`}
+      <button class="btn" data-act="sub-on-profile" data-id="${id}">Ajouter un client sur ce profil</button>
       <button class="btn small" style="align-self:flex-start" data-act="reset-pname" data-id="${id}">Remettre le nom d'origine (${esc(defaultName(id))})</button>
       <button class="btn" data-act="close-sheet">Fermer</button>
     </div>`);
@@ -528,8 +650,12 @@ function viewAccounts() {
   if (!accounts.length) {
     return head + `<div class="panel"><h3>Aucun compte pour le moment</h3><p>Je peux créer d'un coup tes 5 comptes (3 Netflix, 1 Prime Video, 1 Crunchyroll). Tu n'auras plus qu'à indiquer la date de fin de chacun.</p><button class="btn primary" data-act="seed-acc">Créer mes 5 comptes</button></div><button class="btn" data-act="new-acc">Ajouter un compte</button>`;
   }
-  const list = [...accounts].sort((a, b) => (a.endDate || '9999').localeCompare(b.endDate || '9999') || a.name.localeCompare(b.name));
-  return head + list.map((a) => {
+  return head + searchBox('Chercher un compte') + `<div id="clist">${accountsListHTML()}</div><button class="btn" style="margin-top:6px" data-act="new-acc">Ajouter un compte</button>`;
+}
+function accountsListHTML() {
+  const list = accounts.filter((a) => matchQ(ui.q, [a.name, (SERVICES[a.service] || {}).label || '', a.note || ''])).sort((a, b) => (a.endDate || '9999').localeCompare(b.endDate || '9999') || a.name.localeCompare(b.name));
+  if (!list.length) return '<div class="empty">Aucun compte trouvé.</div>';
+  return list.map((a) => {
     const sv = SERVICES[a.service] || SERVICES.netflix, d = accLeft(a), next = accNext(a);
     return `<div class="sub" style="--svc:${sv.bg}">
       <div class="top"><span class="badge" style="--svc:${sv.bg}">${esc(a.name)}</span><span class="pill ${accCls(d)}">${accLabel(d)}</span></div>
@@ -537,7 +663,7 @@ function viewAccounts() {
       <div class="info">${next ? `<span>Après renouvellement : jusqu'au ${fmtDate(next)}</span>` : ''}<span>Cycle de ${Math.round(Number(a.cycleDays)) || 30} jours</span></div>
       ${a.note ? `<div class="info" style="margin-top:4px"><span>${esc(a.note)}</span></div>` : ''}
       <div class="acts"><button class="btn small primary" data-act="renew-acc" data-id="${a.id}" ${a.endDate ? '' : 'disabled'}>J'ai renouvelé</button><button class="btn small" data-act="edit-acc" data-id="${a.id}">Modifier</button></div></div>`;
-  }).join('') + `<button class="btn" style="margin-top:6px" data-act="new-acc">Ajouter un compte</button>`;
+  }).join('');
 }
 const accHint = (f) => f.endDate ? `Après renouvellement : jusqu'au ${fmtDate(accNext({ endDate:f.endDate, cycleDays:f.cycleDays }))}` : 'Indique la date de fin pour calculer le prochain renouvellement.';
 function openAccForm(a) {
@@ -588,6 +714,13 @@ function viewSettings() {
       <textarea id="tpl">${esc(template)}</textarea>
       <div class="stack"><button class="btn" data-act="save-tpl">Enregistrer le message</button>
       <button class="btn small" style="align-self:flex-start" data-act="reset-tpl">Remettre le message d'origine</button></div></div>
+    <div class="panel"><h3>Contacts</h3>
+      <p>Pour retrouver vite un nom et un numéro quand tu ajoutes un client. Les contacts restent sur cet appareil (rien n'est envoyé sur Internet).</p>
+      <div class="state ${contacts.length ? 'ok' : 'bad'}">${contacts.length ? `${contacts.length} contact${contacts.length > 1 ? 's' : ''} sur cet appareil ✓` : 'Aucun contact importé'}</div>
+      <div class="stack"><button class="btn primary" data-act="import-contacts">Importer mes contacts (.vcf)</button>
+      ${canPickContact() ? '<button class="btn" data-act="pick-device-contact">Choisir dans mes contacts</button>' : ''}
+      ${contacts.length ? '<button class="btn small danger" style="align-self:flex-start" data-act="clear-contacts">Supprimer les contacts importés</button>' : ''}</div>
+      <p class="hint" style="margin-top:12px">Sur iPhone, Safari ne laisse pas un site lire directement le répertoire (limite d'Apple). Exporte-le une fois en fichier .vcf : sur icloud.com, Contacts, tout sélectionner, roue dentée, Exporter la vCard. Enregistre le fichier sur ton iPhone (Fichiers), puis importe-le ici. Sur Android avec Chrome, le bouton « Choisir dans mes contacts » ouvre directement ton répertoire.</p></div>
     <div class="panel"><h3>Compte</h3><p>${esc(auth.currentUser.email)}</p><button class="btn danger" data-act="logout">Se déconnecter</button></div>`;
 }
 
@@ -596,33 +729,35 @@ function showSheet(html) {
   const b = $('#sheetBody'), st = b.scrollTop;
   b.innerHTML = html; $('#sheet').hidden = false; b.scrollTop = st;
 }
-function closeSheet() { $('#sheet').hidden = true; form = null; cform = null; }
+function closeSheet() { $('#sheet').hidden = true; form = null; cform = null; bform = null; }
 
 function formOcc() {
   const f = form, occ = {};
-  subs.filter(isVisible).forEach((s) => {
+  subs.filter((s) => isVisible(s) && s._left >= 0).forEach((s) => {
     if (s.id === f.id) return;
     if (f.clientId && s.clientId === f.clientId && s.service === f.service) return; // renouvellement du même client
-    Object.values(s.profiles || {}).forEach((id) => { if (id) occ[id] = s; });
+    Object.values(s.profiles || {}).forEach((id) => { if (id) (occ[id] = occ[id] || []).push(s); });
   });
   return occ;
 }
+// Garde le profil demandé (on peut le partager) ; sinon propose le premier profil entièrement libre
 function autoPick(prev) {
   const f = form, occ = formOcc(), next = {};
   COMPONENTS[f.service].forEach((svc) => {
     const p = (prev || {})[svc];
-    next[svc] = p && p.startsWith(svc + '-') && !occ[p] ? p : (allProfiles(svc).find((id) => !occ[id]) || '');
+    next[svc] = p && p.startsWith(svc + '-') ? p : (allProfiles(svc).find((id) => !(occ[id] || []).length) || '');
   });
   f.profiles = next;
 }
+const formEnd = (f) => addDays(f.start || todayStr(), (f.days > 0 ? f.days : 0) + (f.bonus || 0));
 function openSubForm(o = {}) {
   const b = o.sub;
   if (b) {
     const d = subDays(b);
-    form = { id:b.id, clientId:b.clientId, service:b.service, days:d, custom:!TIERS.includes(d), price:b.price, priceTouched:true, method:b.method || 'Cash', paid:b.paid !== false, start:b.startDate, note:b.note || '', lock:true, profiles:{ ...(b.profiles || {}) } };
+    form = { id:b.id, clientId:b.clientId, service:b.service, days:d, bonus:Number(b.bonusDays) || 0, cq:'', custom:!TIERS.includes(d), price:b.price, priceTouched:true, method:b.method || 'Cash', paid:b.paid !== false, start:b.startDate, note:b.note || '', lock:true, profiles:{ ...(b.profiles || {}) } };
   } else {
     const d = o.days || 30;
-    form = { id:null, clientId:o.clientId || '', service:o.service || 'netflix', days:d, custom:!TIERS.includes(d), price:'', priceTouched:false, method:o.method || 'Orange Money', paid:true, start:o.start || todayStr(), note:o.note || '', lock:!!o.clientId, newName:'', newPhone:'', profiles:{} };
+    form = { id:null, clientId:o.clientId || '', service:o.service || 'netflix', days:d, bonus:0, cq:'', custom:!TIERS.includes(d), price:'', priceTouched:false, method:o.method || 'Orange Money', paid:true, start:o.start || todayStr(), note:o.note || '', lock:!!o.clientId, newName:'', newPhone:'', profiles:{} };
     form.price = priceFor(form.service, form.days);
     autoPick(o.profiles);
   }
@@ -636,7 +771,7 @@ function priceHintText() {
 }
 function refreshDerived() {
   const f = form; if (!f) return;
-  const e = $('#endLabel'); if (e) e.textContent = fmtDate(addDays(f.start || todayStr(), f.days > 0 ? f.days : 0));
+  const e = $('#endLabel'); if (e) e.textContent = fmtDate(formEnd(f));
   const h = $('#priceHint'); if (h) h.textContent = priceHintText();
   document.querySelectorAll('[data-tp]').forEach((el) => { el.textContent = money(priceFor(el.dataset.tp, f.days)); });
   const p = document.querySelector('[data-f="price"]'); if (p && !f.priceTouched) p.value = f.price;
@@ -645,24 +780,41 @@ function profilePickerHTML() {
   const f = form, occ = formOcc();
   return COMPONENTS[f.service].map((svc) => {
     const ids = allProfiles(svc), sel = f.profiles[svc] || '';
-    const free = ids.filter((id) => !occ[id]).length;
+    const free = ids.filter((id) => !(occ[id] || []).length).length;
     const chips = ids.map((id) => {
-      const o = occ[id];
-      const sub = o ? (o._left < 0 ? 'à libérer' : o.clientName) : 'Libre';
-      return `<button class="pf ${sel === id ? 'on' : ''} ${o ? 'busy' : ''}" ${o ? 'disabled' : ''} data-act="pick-profile" data-svc="${svc}" data-v="${id}"><b>${esc(profName(id))}</b><small>${esc(sub)}</small></button>`;
+      const os = occ[id] || [];
+      const sub = os.length ? (os.length === 1 ? os[0].clientName : `${os.length} clients`) : 'Libre';
+      return `<button class="pf ${sel === id ? 'on' : ''} ${os.length ? 'busy' : ''}" data-act="pick-profile" data-svc="${svc}" data-v="${id}"><b>${esc(profName(id))}</b><small>${esc(sub)}</small></button>`;
     }).join('');
     return `<div class="field"><label>Profil ${SHORT[svc]} (${free} libre${free > 1 ? 's' : ''} sur ${ids.length})</label></div>
       <div class="pfgrid">${chips}<button class="pf none ${sel === '' ? 'on' : ''}" data-act="pick-profile" data-svc="${svc}" data-v=""><b>Sans profil</b><small>&nbsp;</small></button></div>
-      ${free === 0 ? `<p class="hint" style="margin:-8px 0 14px;color:var(--warn)">Tous les profils ${SHORT[svc]} sont occupés.</p>` : ''}`;
+      ${free === 0 ? `<p class="hint" style="margin:-8px 0 14px;color:var(--warn)">Tous les profils ${SHORT[svc]} ont déjà un client : choisis-en un pour le partager.</p>` : ''}`;
   }).join('');
 }
-function subFormHTML() {
+function clientResultsHTML() {
+  const f = form, q = (f.cq || '').trim();
+  const phones = new Set(clients.map((c) => waNumber(c.phone)));
+  const cl = clients.filter((c) => matchClient(c, q)).sort(byName).slice(0, 30);
+  const ct = q ? contacts.map((c, i) => ({ ...c, i })).filter((c) => matchQ(q, [c.name], c.phone) && !phones.has(waNumber(c.phone))).slice(0, 30) : [];
+  const nw = q ? `<button class="pick new" data-act="pick-new"><b>➕ Nouveau client « ${esc(q)} »</b></button>` : `<button class="pick new" data-act="pick-new"><b>➕ Nouveau client</b></button>`;
+  return nw + cl.map((c) => `<button class="pick" data-act="pick-client" data-id="${c.id}"><b>${esc(c.name)}</b><small>${esc(c.phone || 'Sans numéro')}</small></button>`).join('')
+    + ct.map((c) => `<button class="pick contact" data-act="pick-contact" data-i="${c.i}"><b>${esc(c.name)}</b><small>${esc(c.phone)}</small></button>`).join('')
+    + (q && !cl.length && !ct.length ? '<p class="hint">Aucun client ni contact trouvé.</p>' : '');
+}
+function clientBlockHTML() {
   const f = form, c = clientById(f.clientId);
-  const end = addDays(f.start || todayStr(), f.days > 0 ? f.days : 0);
-  const clientBlock = f.lock
-    ? `<div class="field"><label>Client</label><div class="locked">${esc(c ? c.name : '')}</div></div>`
-    : `<div class="field"><label>Client</label><select data-f="clientId"><option value="">Choisir un client…</option><option value="__new" ${f.clientId === '__new' ? 'selected' : ''}>➕ Nouveau client</option>${[...clients].sort((a, b) => a.name.localeCompare(b.name)).map((x) => `<option value="${x.id}" ${x.id === f.clientId ? 'selected' : ''}>${esc(x.name)}${x.phone ? ' (' + esc(x.phone) + ')' : ''}</option>`).join('')}</select></div>`
-      + (f.clientId === '__new' ? `<div class="two"><div class="field"><label>Nom</label><input data-f="newName" value="${esc(f.newName)}" placeholder="Marie K." autocomplete="off"></div><div class="field"><label>Numéro WhatsApp</label><input data-f="newPhone" type="tel" value="${esc(f.newPhone)}" placeholder="081 234 5678"></div></div>` : '');
+  if (f.lock) return `<div class="field"><label>Client</label><div class="locked">${esc(c ? c.name : '')}</div></div>`;
+  if (c) return `<div class="field"><label>Client</label><div class="locked chosen"><span>${esc(c.name)}<small>${esc(c.phone || '')}</small></span><button class="btn small" data-act="change-client">Changer</button></div></div>`;
+  if (f.clientId === '__new') return `<div class="field"><label>Nouveau client</label></div>
+    <div class="two"><div class="field"><label>Nom</label><input data-f="newName" value="${esc(f.newName)}" placeholder="Marie K." autocomplete="off"></div><div class="field"><label>Numéro WhatsApp</label><input data-f="newPhone" type="tel" value="${esc(f.newPhone)}" placeholder="081 234 5678"></div></div>
+    <div class="pickrow"><button class="btn small" data-act="change-client">← Chercher un autre client</button></div>`;
+  return `<div class="field"><label>Client</label><input data-f="cq" type="search" value="${esc(f.cq)}" placeholder="Chercher un client ou un contact" autocomplete="off"></div>
+    <div class="pickrow">${canPickContact() ? '<button class="btn small" data-act="pick-device-contact">📇 Mes contacts</button>' : ''}<button class="btn small" data-act="import-contacts">${contacts.length ? `Contacts (${contacts.length}) : réimporter` : 'Importer mes contacts'}</button></div>
+    <div class="cres" id="cres">${clientResultsHTML()}</div>`;
+}
+function subFormHTML() {
+  const f = form, end = formEnd(f);
+  const clientBlock = clientBlockHTML();
   const tiles = Object.entries(SERVICES).map(([k, v]) => `<button class="tile ${f.service === k ? 'on' : ''}" style="--svc:${v.bg}" data-act="pick-service" data-v="${k}"><b>${v.label}</b><span data-tp="${k}">${money(priceFor(k, f.days))}</span></button>`).join('');
   const segs = TIERS.map((d) => `<button class="seg ${!f.custom && f.days === d ? 'on' : ''}" data-act="pick-days" data-v="${d}">${d / 30} mois<small>${d} jours</small></button>`).join('')
     + `<button class="seg ${f.custom ? 'on' : ''}" data-act="pick-days" data-v="custom">Autre<small>en jours</small></button>`;
@@ -674,6 +826,7 @@ function subFormHTML() {
     ${profilePickerHTML()}
     <div class="field"><label>Durée</label></div><div class="segs four">${segs}</div>
     ${customBlock}
+    <div class="field"><label>Jours de non-service à ajouter (facultatif)</label><input data-f="bonus" type="number" inputmode="numeric" min="0" value="${f.bonus || ''}" placeholder="0"><span class="hint">Si le compte a eu un problème, ces jours sont ajoutés à la fin de l'abonnement. Le prix ne change pas.</span></div>
     <div class="field"><label>Somme à payer</label><input data-f="price" type="number" inputmode="numeric" min="0" value="${esc(f.price)}"><span class="hint" id="priceHint">${esc(priceHintText())}</span></div>
     <div class="field"><label>Moyen de paiement</label></div><div class="wrapchips">${methods}</div>
     <label class="check"><input type="checkbox" data-f="paid" ${f.paid ? 'checked' : ''}>Payé</label>
@@ -702,18 +855,48 @@ async function saveSub() {
     } else clientName = clientById(clientId).name;
     const profiles = {};
     COMPONENTS[f.service].forEach((svc) => { if (f.profiles[svc]) profiles[svc] = f.profiles[svc]; });
-    const data = { clientId, clientName, service:f.service, days:f.days, months:Math.round(f.days / 30 * 100) / 100, price, method:f.method, paid:!!f.paid,
-      startDate:f.start, endDate:addDays(f.start, f.days), profiles, note:(f.note || '').trim() };
+    const data = { clientId, clientName, service:f.service, days:f.days, bonusDays:f.bonus || 0, months:Math.round(f.days / 30 * 100) / 100, price, method:f.method, paid:!!f.paid,
+      startDate:f.start, endDate:formEnd(f), profiles, note:(f.note || '').trim() };
     if (f.id) await db.doc('subscriptions/' + f.id).update(data);
     else await db.collection('subscriptions').add({ ...data, archived:false, createdAt:TS() });
     closeSheet(); toast('Abonnement enregistré ✓');
   } catch (err) { console.error(err); f.saving = false; toast('Erreur : ' + (err.message || err)); }
 }
 
+function openBonus(sb) {
+  bform = { sid:sb.id, n:0 };
+  showSheet(`<h3>Jours de non-service</h3>
+    <p class="note" style="margin-top:-8px">${esc(sb.clientName)}, ${(SERVICES[sb.service] || {}).label}. Fin actuelle : ${fmtDate(sb.endDate)}${Number(sb.bonusDays) > 0 ? ` (déjà ${Number(sb.bonusDays)} j offerts)` : ''}.</p>
+    <div class="field"><label>Nombre de jours à rajouter</label><input data-b="n" type="number" inputmode="numeric" min="1" placeholder="ex. 5" autocomplete="off"><span class="hint" id="bonusHint">Indique les jours où le compte n'a pas marché.</span></div>
+    <div class="stack"><button class="btn primary" data-act="save-bonus">Ajouter ces jours</button><button class="btn" data-act="close-sheet">Annuler</button></div>`);
+}
+async function saveBonus() {
+  const f = bform, sb = f && subs.find((x) => x.id === f.sid); if (!sb) return;
+  const n = Math.round(Number(f.n));
+  if (!(n >= 1)) return toast('Indique le nombre de jours');
+  try {
+    await db.doc('subscriptions/' + sb.id).update({ bonusDays:(Number(sb.bonusDays) || 0) + n, endDate:addDays(sb.endDate, n) });
+    closeSheet(); toast(`${n} jour${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} : fin le ${fmtDate(addDays(sb.endDate, n))} ✓`, 4000);
+  } catch (err) { console.error(err); toast('Erreur : ' + (err.message || err)); }
+}
+
 /* ============ Feuille client ============ */
+function ccresHTML() {
+  const q = (cform.cq || '').trim(); if (!q) return '';
+  const known = new Set(clients.map((c) => waNumber(c.phone)));
+  const ct = contacts.map((c, i) => ({ ...c, i })).filter((c) => matchQ(q, [c.name], c.phone) && !known.has(waNumber(c.phone))).slice(0, 12);
+  return ct.length ? ct.map((c) => `<button class="pick contact" data-act="fill-contact" data-i="${c.i}"><b>${esc(c.name)}</b><small>${esc(c.phone)}</small></button>`).join('') : '<p class="hint">Aucun contact trouvé.</p>';
+}
 function openClientForm(c) {
-  cform = c ? { id:c.id, name:c.name, phone:c.phone || '', note:c.note || '' } : { id:null, name:'', phone:'', note:'' };
-  showSheet(`<h3>${c ? 'Modifier le client' : 'Nouveau client'}</h3>
+  cform = c ? { id:c.id, name:c.name, phone:c.phone || '', note:c.note || '', cq:'' } : { id:null, name:'', phone:'', note:'', cq:'' };
+  showSheet(clientFormHTML());
+}
+function clientFormHTML() {
+  const c = cform.id ? clientById(cform.id) : null;
+  return (`<h3>${c ? 'Modifier le client' : 'Nouveau client'}</h3>
+    ${c ? '' : `<div class="field"><label>Chercher dans mes contacts</label><input data-c="cq" type="search" value="${esc(cform.cq)}" placeholder="Nom ou numéro" autocomplete="off"></div>
+    <div class="pickrow">${canPickContact() ? '<button class="btn small" data-act="pick-device-contact">📇 Mes contacts</button>' : ''}<button class="btn small" data-act="import-contacts">${contacts.length ? `Contacts (${contacts.length}) : réimporter` : 'Importer mes contacts'}</button></div>
+    <div class="cres" id="ccres">${ccresHTML()}</div>`}
     <div class="field"><label>Nom</label><input data-c="name" value="${esc(cform.name)}" autocomplete="off"></div>
     <div class="field"><label>Numéro WhatsApp</label><input data-c="phone" type="tel" value="${esc(cform.phone)}" placeholder="081 234 5678"></div>
     <div class="field"><label>Note</label><input data-c="note" value="${esc(cform.note)}" autocomplete="off"></div>
@@ -762,7 +945,7 @@ document.addEventListener('click', async (e) => {
   const { act, id, sid, v } = el.dataset;
   const sub = sid ? subs.find((s) => s.id === sid) : null;
   switch (act) {
-    case 'tab': ui.tab = el.dataset.tab; ui.detail = null; render(); window.scrollTo(0, 0); break;
+    case 'tab': ui.tab = el.dataset.tab; ui.detail = null; ui.q = ''; render(); window.scrollTo(0, 0); break;
     case 'status': ui.status = v; render(); break;
     case 'service': ui.service = v; render(); break;
     case 'open-client': ui.detail = id; render(); $('#detail').scrollTop = 0; break;
@@ -771,8 +954,10 @@ document.addEventListener('click', async (e) => {
     case 'new-client': openClientForm(null); break;
     case 'edit-client': openClientForm(clientById(id)); break;
     case 'edit-sub': if (sub) openSubForm({ sub }); break;
-    case 'renew-sub': if (sub) openSubForm({ clientId:sub.clientId, service:sub.service, days:subDays(sub), method:sub.method, note:sub.note, profiles:sub.profiles || {}, start: sub._left > 0 ? sub.endDate : todayStr() }); break;
-    case 'archive-sub': if (sub) { await db.doc('subscriptions/' + sid).update({ archived:true }); toast(hasProf(sub) ? 'Profil libéré ✓' : 'Archivé (visible dans l\'historique)'); } break;
+    case 'renew-sub': if (sub) openSubForm({ clientId:sub.clientId, service:sub.service, days:subDays(sub), method:sub.method, note:sub.note, profiles:hasProf(sub) ? sub.profiles : (sub.freedProfiles || {}), start: sub._left > 0 ? sub.endDate : todayStr() }); break;
+    case 'bonus-sub': if (sub) openBonus(sub); break;
+    case 'save-bonus': saveBonus(); break;
+    case 'archive-sub': if (sub) { await db.doc('subscriptions/' + sid).update({ archived:true, ...(hasProf(sub) ? { profiles:{}, freedProfiles:{ ...sub.profiles }, freedAt:todayStr() } : {}) }); toast(hasProf(sub) ? 'Profil libéré ✓' : 'Archivé (visible dans l\'historique)'); } break;
     case 'fab': if (ui.tab === 'accounts') openAccForm(null); else openSubForm({ clientId: ui.detail || '' }); break;
     case 'pick-service': form.service = v; form.priceTouched = false; form.price = priceFor(v, form.days); autoPick(form.profiles); showSheet(subFormHTML()); break;
     case 'pick-days':
@@ -784,13 +969,23 @@ document.addEventListener('click', async (e) => {
     case 'reset-pname': savePname(id, true); break;
     case 'goto-client': closeSheet(); ui.detail = id; render(); $('#detail').scrollTop = 0; break;
     case 'sub-on-profile': { const svc = id.split('-')[0]; closeSheet(); openSubForm({ service:svc, profiles:{ [svc]:id } }); break; }
-    case 'free-profile': {
-      const o = subs.find((x) => x.id === sid);
-      if (o && (o._left >= 0 ? confirm("Cet abonnement n'est pas encore terminé. Libérer quand même ce profil ?") : true)) {
-        await db.doc('subscriptions/' + sid).update({ archived:true }); closeSheet(); toast('Profil libéré ✓');
-      }
+    case 'remove-from-profile': {
+      if (!sub) break;
+      const upd = {};
+      Object.entries(sub.profiles || {}).forEach(([svc, pid]) => { if (pid === id) upd['profiles.' + svc] = firebase.firestore.FieldValue.delete(); });
+      if (!Object.keys(upd).length) break;
+      if (!confirm(`Retirer ${sub.clientName} du profil ${profName(id)} ? Son abonnement reste actif.`)) break;
+      await db.doc('subscriptions/' + sid).update(upd); closeSheet(); toast(`${sub.clientName} retiré de ${profName(id)} ✓`);
       break;
     }
+    case 'pick-client': form.clientId = id; autoPick(form.profiles); showSheet(subFormHTML()); break;
+    case 'pick-new': { const q = (form.cq || '').trim(); form.clientId = '__new'; if (/^[\d\s+().-]+$/.test(q) && digitsOf(q).length >= 3) form.newPhone = q; else form.newName = q; showSheet(subFormHTML()); break; }
+    case 'pick-contact': { const c = contacts[Number(el.dataset.i)]; if (c) applyContact(c.name, c.phone); break; }
+    case 'fill-contact': { const c = contacts[Number(el.dataset.i)]; if (c) applyContact(c.name, c.phone); break; }
+    case 'change-client': form.clientId = ''; form.cq = ''; showSheet(subFormHTML()); break;
+    case 'pick-device-contact': pickDeviceContact(); break;
+    case 'import-contacts': $('#vcf').click(); break;
+    case 'clear-contacts': if (confirm('Supprimer les contacts importés sur cet appareil ?')) { contacts = []; saveContacts(); toast('Contacts supprimés'); render(); } break;
     case 'new-acc': openAccForm(null); break;
     case 'edit-acc': openAccForm(accounts.find((a) => a.id === id)); break;
     case 'save-acc': saveAcc(); break;
@@ -832,11 +1027,14 @@ document.addEventListener('click', async (e) => {
 });
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.f === 'q') { ui.q = t.value; $('#clist').innerHTML = clientListHTML(); return; }
-  if (t.dataset.c && cform) { cform[t.dataset.c] = t.value; return; }
+  if (t.dataset.f === 'q') { ui.q = t.value; if (LISTS[ui.tab] && $('#clist')) $('#clist').innerHTML = LISTS[ui.tab](); return; }
+  if (t.dataset.f === 'cq' && form) { form.cq = t.value; $('#cres').innerHTML = clientResultsHTML(); return; }
+  if (t.dataset.b && bform) { bform.n = t.value; const h = $('#bonusHint'), sb = subs.find((x) => x.id === bform.sid), n = Math.round(Number(t.value)); if (h && sb) h.textContent = n >= 1 ? `Nouvelle fin : ${fmtDate(addDays(sb.endDate, n))}` : ''; return; }
+  if (t.dataset.c && cform) { cform[t.dataset.c] = t.value; if (t.dataset.c === 'cq') { const r = $('#ccres'); if (r) r.innerHTML = ccresHTML(); } return; }
   if (t.dataset.a && aform) { aform[t.dataset.a] = t.value; const h = $('#accNext'); if (h) h.textContent = accHint(aform); return; }
   if (!t.dataset.f || !form || t.tagName === 'SELECT') return;
   const k = t.dataset.f;
+  if (k === 'bonus') { form.bonus = Math.max(0, Math.round(Number(t.value) || 0)); refreshDerived(); return; }
   if (k === 'days') { form.days = Math.max(0, Math.round(Number(t.value) || 0)); form.priceTouched = false; form.price = priceFor(form.service, form.days); refreshDerived(); return; }
   form[k] = t.type === 'checkbox' ? t.checked : t.value;
   if (k === 'price') form.priceTouched = true;
@@ -844,10 +1042,11 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.tagName === 'SELECT' && t.dataset.f === 'clientId' && form) { form.clientId = t.value; autoPick(form.profiles); showSheet(subFormHTML()); return; }
+  if (t.id === 'vcf') { const fl = [...t.files]; t.value = ''; if (fl.length) importVcf(fl); return; }
   if (t.dataset.f === 'start' && form) { form.start = t.value; refreshDerived(); }
   if (t.dataset.a && aform) { aform[t.dataset.a] = t.value; const h = $('#accNext'); if (h) h.textContent = accHint(aform); }
 });
+Object.assign(LISTS, { subs:subsListHTML, clients:clientListHTML, profiles:profilesListHTML, accounts:accountsListHTML });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
 /* ============ Connexion et données ============ */
@@ -866,7 +1065,7 @@ function start() {
   unsubs.push(db.doc('settings/profiles').onSnapshot((d) => { profileNames = (d.exists && d.data().names) || {}; render(); }, onErr));
   unsubs.push(db.doc('settings/app').onSnapshot((d) => { template = (d.exists && d.data().template) || DEFAULT_TEMPLATE; if (ui.tab === 'settings' && document.activeElement.id !== 'tpl') render(); }, onErr));
 }
-function stop() { unsubs.forEach((u) => u()); unsubs = []; clients = []; subs = []; accounts = []; profileNames = {}; loaded = { c:false, s:false }; ui.detail = null; closeSheet(); }
+function stop() { unsubs.forEach((u) => u()); unsubs = []; clients = []; subs = []; accounts = []; profileNames = {}; loaded = { c:false, s:false }; pendingAuto.clear(); ui.detail = null; closeSheet(); }
 
 auth.onAuthStateChanged((u) => {
   $('#boot').hidden = true;
