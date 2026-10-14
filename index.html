@@ -60,7 +60,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;padding
 main{max-width:600px;margin:0 auto;padding:6px 16px calc(150px + var(--sab))}
 .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:8px 12px calc(8px + var(--sab));background:rgba(7,10,20,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);z-index:20}
 .tabs .in{display:flex;width:100%;max-width:600px}
-.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--mut);font-size:12px;font-weight:600}
+.tab{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--mut);font-size:11px;font-weight:600;white-space:nowrap}
 .tab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .tab.on{color:var(--tx)}
 .fab{position:fixed;right:18px;bottom:calc(84px + var(--sab));width:58px;height:58px;border-radius:50%;background:var(--grad);display:grid;place-items:center;box-shadow:0 10px 28px rgba(10,58,138,.55);z-index:21}
@@ -194,6 +194,15 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
 .occrow .main{flex:1;min-width:0;cursor:pointer}
 .occrow strong{display:block}
 .occrow small{color:var(--mut);font-size:13px}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:14.5px;color:var(--mut)}
+.kv b{color:var(--tx);font-weight:600;text-align:right}
+.kv.tot{border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:16px;color:var(--tx);font-weight:700}
+.kv.tot b{font-family:var(--disp);font-size:16px;font-weight:700}
+.neg{color:var(--bad)!important} .pos{color:var(--ok)!important}
+.pernav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 10px}
+.pernav .lbl{flex:1;text-align:center;font-weight:700;line-height:1.25}
+.pernav .lbl small{display:block;font-weight:500;color:var(--mut)}
+.warnline{font-size:13px;color:var(--warn);margin-top:6px}
 #toast{position:fixed;left:50%;bottom:calc(96px + var(--sab));transform:translateX(-50%);background:#fff;color:#0b0d14;padding:11px 18px;border-radius:99px;font-weight:700;font-size:14.5px;z-index:80;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 </style>
@@ -226,6 +235,7 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
     <button class="tab" data-act="tab" data-tab="clients"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 5a3.2 3.2 0 0 1 0 6M18.5 14.8c1.7.7 2.7 2.3 3 5.2"/></svg>Clients</button>
     <button class="tab" data-act="tab" data-tab="profiles"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>Profils</button>
     <button class="tab" data-act="tab" data-tab="accounts"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10.5h18M7 15h3"/></svg>Mes comptes</button>
+    <button class="tab" data-act="tab" data-tab="reports"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Rapports</button>
   </div></nav>
 
   <div id="detail" class="page" hidden></div>
@@ -261,6 +271,13 @@ const METHODS = ['Illicocash','Orange Money','Airtel Money','Cash','Autre'];
 const DEFAULT_TEMPLATE = "Bonjour {nom} 👋\nVotre abonnement {service} chez Vision Streaming {quand} (le {date}).\nSouhaitez-vous le renouveler ? Merci !";
 
 const SHORT = { netflix:'Netflix', prime:'Prime Video', crunchyroll:'Crunchyroll' };
+/* Rapports : période du 24 au 24, taux dollar/franc, part reversée à un groupe */
+const PERIOD_DAY = 24;       // une période va du 24 d'un mois au 23 du mois suivant (le 24 suivant ouvre la période d'après)
+const DEFAULT_RATE = 2300;   // 1 $ = 2300 Fc (modifiable dans Réglages)
+const GROUPS = ['netflix', 'prime', 'crunchyroll'];
+const GROUP_LABEL = { netflix:'Netflix groupé', prime:'Prime Video', crunchyroll:'Crunchyroll' };
+// Part du groupe, en Fc pour 30 jours d'abonnement (Crunchyroll : tu gardes 9000, le groupe prend 3000)
+const PARTNER_SHARE = { crunchyroll:3000 };
 // Profils de chaque service (modifie les nombres ou les préfixes ici si besoin)
 const PROFILE_SETS = {
   netflix:     { count:15, prefix:'Vision' },
@@ -278,8 +295,8 @@ const ACCOUNT_SEED = [
   { name:'Netflix 1',   service:'netflix',     endDate:'2026-11-12', note:'Profils Vision 1 à 5' },
   { name:'Netflix 2',   service:'netflix',     endDate:'2026-11-12', note:'Profils Vision 6 à 10' },
   { name:'Netflix 3',   service:'netflix',     endDate:'2026-10-26', note:'Profils Vision 11 à 15' },
-  { name:'Prime Video', service:'prime',       endDate:'2026-11-08', note:'' },
-  { name:'Crunchyroll', service:'crunchyroll', endDate:'2026-11-14', note:'' }
+  { name:'Prime Video', service:'prime',       endDate:'2026-11-08', note:'', costUsd:5.99 },
+  { name:'Crunchyroll', service:'crunchyroll', endDate:'2026-11-14', note:'', costUsd:9.99 }
 ];
 // Un Combo occupe un profil Netflix ET un profil Prime Video
 const COMPONENTS = { netflix:['netflix'], prime:['prime'], crunchyroll:['crunchyroll'], combo:['netflix','prime'] };
@@ -374,15 +391,15 @@ function applyContact(name, phone) {
 }
 
 /* ============ État ============ */
-const ui = { tab:'subs', status:'all', service:'all', q:'', detail:null };
-let clients = [], subs = [], accounts = [], profileNames = {}, template = DEFAULT_TEMPLATE;
+const ui = { tab:'subs', status:'all', service:'all', q:'', detail:null, rfrom:'', rto:'', rsvc:'all' };
+let clients = [], subs = [], accounts = [], profileNames = {}, template = DEFAULT_TEMPLATE, rate = DEFAULT_RATE;
 let loaded = { c:false, s:false };
 let unsubs = [];
 let form = null, cform = null, aform = null, bform = null;
 const pendingAuto = new Set();
 const params = new URLSearchParams(location.search);
 if (params.get('filter') === 'soon') ui.status = 'soon';
-if (['accounts', 'profiles', 'clients'].includes(params.get('tab'))) ui.tab = params.get('tab');
+if (['accounts', 'profiles', 'clients', 'reports'].includes(params.get('tab'))) ui.tab = params.get('tab');
 
 const clientById = (id) => clients.find((c) => c.id === id);
 
@@ -507,9 +524,9 @@ function render() {
   autoMaintain();
   const searching = document.activeElement && document.activeElement.id === 'q';
   if (searching && LISTS[ui.tab] && $('#clist')) { $('#clist').innerHTML = LISTS[ui.tab](); }
-  else $('#view').innerHTML = ({ subs:viewSubs, clients:viewClients, profiles:viewProfiles, accounts:viewAccounts, settings:viewSettings })[ui.tab]();
+  else $('#view').innerHTML = ({ subs:viewSubs, clients:viewClients, profiles:viewProfiles, accounts:viewAccounts, reports:viewReports, settings:viewSettings })[ui.tab]();
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === ui.tab));
-  $('.fab').hidden = ui.tab === 'settings';
+  $('.fab').hidden = ui.tab === 'settings' || ui.tab === 'reports';
   if (ui.detail) renderDetail(); else $('#detail').hidden = true;
 }
 
@@ -666,12 +683,12 @@ function viewAccounts() {
     return head + `<div class="panel"><h3>Aucun compte pour le moment</h3><p>Je crée d'un coup tes 5 comptes (3 Netflix, 1 Prime Video, 1 Crunchyroll) avec leur prochaine date de paiement.</p><button class="btn primary" data-act="seed-acc">Créer mes 5 comptes</button></div><button class="btn" data-act="new-acc">Ajouter un compte</button>`;
   }
   const missing = seedMissing();
-  const fill = missing.length ? `<div class="panel"><h3>Dates à compléter</h3><p>${missing.map((m) => esc(m.name)).join(', ')} : je peux remplir la prochaine date de paiement d'après tes captures d'écran.</p><button class="btn primary" data-act="fill-acc">Remplir les dates</button></div>` : '';
+  const fill = missing.length ? `<div class="panel"><h3>Dates et coûts à compléter</h3><p>${missing.map((m) => esc(m.name)).join(', ')} : je peux remplir la prochaine date de paiement et le coût en $ d'après tes captures d'écran.</p><button class="btn primary" data-act="fill-acc">Remplir</button></div>` : '';
   return head + fill + searchBox('Chercher un compte') + `<div id="clist">${accountsListHTML()}</div><button class="btn" style="margin-top:6px" data-act="new-acc">Ajouter un compte</button>`;
 }
 const seedKey = (x) => norm(x).replace(/\s+/g, ' ').trim();
 function seedMissing() {
-  return ACCOUNT_SEED.filter((sd) => { const a = accounts.find((x) => seedKey(x.name) === seedKey(sd.name)); return a && !a.endDate; });
+  return ACCOUNT_SEED.filter((sd) => { const a = accounts.find((x) => seedKey(x.name) === seedKey(sd.name)); return a && (!a.endDate || (sd.costUsd && !a.costUsd)); });
 }
 function accountsListHTML() {
   const list = accounts.filter((a) => matchQ(ui.q, [a.name, (SERVICES[a.service] || {}).label || '', a.note || ''])).sort((a, b) => (a.endDate || '9999').localeCompare(b.endDate || '9999') || a.name.localeCompare(b.name));
@@ -681,21 +698,22 @@ function accountsListHTML() {
     return `<div class="sub" style="--svc:${sv.bg}">
       <div class="top"><span class="badge" style="--svc:${sv.bg}">${esc(a.name)}</span><span class="pill ${accCls(d)}">${accLabel(d)}</span></div>
       <div class="dates">${a.endDate ? 'Fin le ' + fmtDate(a.endDate) : 'Pas de date'}</div>
-      <div class="info">${next ? `<span>Après renouvellement : jusqu'au ${fmtDate(next)}</span>` : ''}<span>Cycle de ${Math.round(Number(a.cycleDays)) || 30} jours</span></div>
+      <div class="info">${next ? `<span>Après renouvellement : jusqu'au ${fmtDate(next)}</span>` : ''}<span>Cycle de ${Math.round(Number(a.cycleDays)) || 30} jours</span>${Number(a.costUsd) > 0 ? `<span>Coût : ${usd(a.costUsd)}/mois (≈ ${money(Math.round(a.costUsd * rate))})</span>` : '<span>Coût en $ non renseigné</span>'}</div>
       ${a.note ? `<div class="info" style="margin-top:4px"><span>${esc(a.note)}</span></div>` : ''}
       <div class="acts">${accPayUrl(a) ? `<a class="btn small primary" href="${esc(accPayUrl(a))}" target="_blank" rel="noopener">Payer ↗</a>` : ''}<button class="btn small" data-act="renew-acc" data-id="${a.id}" ${a.endDate ? '' : 'disabled'}>J'ai renouvelé</button><button class="btn small" data-act="edit-acc" data-id="${a.id}">Modifier</button></div></div>`;
   }).join('');
 }
 const accHint = (f) => f.endDate ? `Après renouvellement : jusqu'au ${fmtDate(accNext({ endDate:f.endDate, cycleDays:f.cycleDays }))}` : 'Indique la date de fin pour calculer le prochain renouvellement.';
 function openAccForm(a) {
-  aform = a ? { id:a.id, name:a.name, service:a.service, endDate:a.endDate || '', cycleDays:a.cycleDays || 30, note:a.note || '', payUrl:a.payUrl || '' }
-    : { id:null, name:'', service:'netflix', endDate:'', cycleDays:30, note:'', payUrl:'' };
+  aform = a ? { id:a.id, name:a.name, service:a.service, endDate:a.endDate || '', cycleDays:a.cycleDays || 30, note:a.note || '', payUrl:a.payUrl || '', costUsd:a.costUsd || '' }
+    : { id:null, name:'', service:'netflix', endDate:'', cycleDays:30, note:'', payUrl:'', costUsd:'' };
   const f = aform;
   showSheet(`<h3>${a ? 'Modifier le compte' : 'Nouveau compte'}</h3>
     <div class="field"><label>Nom du compte</label><input data-a="name" value="${esc(f.name)}" placeholder="Netflix 1" autocomplete="off"></div>
     <div class="field"><label>Service</label><select data-a="service">${Object.keys(PROFILE_SETS).map((k) => `<option value="${k}" ${f.service === k ? 'selected' : ''}>${SHORT[k]}</option>`).join('')}</select></div>
     <div class="field"><label>Fin de l'abonnement actuel</label><input data-a="endDate" type="date" value="${esc(f.endDate)}"></div>
     <div class="field"><label>Durée d'un renouvellement (jours)</label><input data-a="cycleDays" type="number" inputmode="numeric" min="1" value="${esc(f.cycleDays)}"><span class="hint" id="accNext">${esc(accHint(f))}</span></div>
+    <div class="field"><label>Ce que tu paies chaque mois pour ce compte ($)</label><input data-a="costUsd" type="text" inputmode="decimal" value="${esc(f.costUsd)}" placeholder="ex. 9.99" autocomplete="off"><span class="hint">Sert à calculer ton bénéfice dans les rapports (converti en francs avec le taux des Réglages).</span></div>
     <div class="field"><label>Note (email du compte…)</label><input data-a="note" value="${esc(f.note)}" autocomplete="off"></div>
     <div class="field"><label>Lien de la page de paiement (facultatif)</label><input data-a="payUrl" type="url" value="${esc(f.payUrl)}" placeholder="${esc(PAY_URLS[f.service] || 'https://…')}" autocomplete="off"><span class="hint">Laisse vide pour utiliser le lien habituel du service. Le bouton « Payer » et la notification ouvrent cette page.</span></div>
     <div class="stack"><button class="btn primary" data-act="save-acc">Enregistrer</button>
@@ -709,7 +727,7 @@ async function saveAcc() {
   let name = (f.name || '').trim();
   if (!name) name = `${SHORT[f.service]} ${accounts.filter((x) => x.service === f.service).length + 1}`;
   f.saving = true;
-  const data = { name, service:f.service, endDate:f.endDate || '', cycleDays:cycle, note:(f.note || '').trim(), payUrl:(f.payUrl || '').trim() };
+  const data = { name, service:f.service, endDate:f.endDate || '', cycleDays:cycle, note:(f.note || '').trim(), payUrl:(f.payUrl || '').trim(), costUsd:(Number(String(f.costUsd).replace(',', '.')) > 0 ? Number(String(f.costUsd).replace(',', '.')) : null) };
   try {
     if (f.id) await db.doc('accounts/' + f.id).update(data);
     else await db.collection('accounts').add({ ...data, createdAt:TS() });
@@ -736,6 +754,10 @@ function viewSettings() {
       <textarea id="tpl">${esc(template)}</textarea>
       <div class="stack"><button class="btn" data-act="save-tpl">Enregistrer le message</button>
       <button class="btn small" style="align-self:flex-start" data-act="reset-tpl">Remettre le message d'origine</button></div></div>
+    <div class="panel"><h3>Taux de change</h3>
+      <p>Tes comptes sont payés en dollars, tes clients en francs. Ce taux convertit les dollars en francs dans les rapports.</p>
+      <div class="field"><label>1 dollar = … Fc</label><input id="rate" type="number" inputmode="numeric" min="1" value="${rate}"></div>
+      <button class="btn" data-act="save-rate">Enregistrer le taux</button></div>
     <div class="panel"><h3>Contacts</h3>
       <p>Pour retrouver vite un nom et un numéro quand tu ajoutes un client. Les contacts restent sur cet appareil (rien n'est envoyé sur Internet).</p>
       <div class="state ${contacts.length ? 'ok' : 'bad'}">${contacts.length ? `${contacts.length} contact${contacts.length > 1 ? 's' : ''} sur cet appareil ✓` : 'Aucun contact importé'}</div>
@@ -744,6 +766,179 @@ function viewSettings() {
       ${contacts.length ? '<button class="btn small danger" style="align-self:flex-start" data-act="clear-contacts">Supprimer les contacts importés</button>' : ''}</div>
       <p class="hint" style="margin-top:12px">Sur iPhone, Safari ne laisse pas un site lire directement le répertoire (limite d'Apple). Exporte-le une fois en fichier .vcf : sur icloud.com, Contacts, tout sélectionner, roue dentée, Exporter la vCard. Enregistre le fichier sur ton iPhone (Fichiers), puis importe-le ici. Sur Android avec Chrome, le bouton « Choisir dans mes contacts » ouvre directement ton répertoire.</p></div>
     <div class="panel"><h3>Compte</h3><p>${esc(auth.currentUser.email)}</p><button class="btn danger" data-act="logout">Se déconnecter</button></div>`;
+}
+
+/* ============ Rapports (périodes du 24 au 24) ============ */
+const usd = (n) => '$' + (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits:2 });
+const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const periodStart = (d) => { let [y, m, dd] = d.split('-').map(Number); if (dd < PERIOD_DAY) { m--; if (m < 1) { m = 12; y--; } } return `${y}-${pad(m)}-${pad(PERIOD_DAY)}`; };
+const shiftPeriod = (start, k) => { let [y, m] = start.split('-').map(Number); m += k; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return `${y}-${pad(m)}-${pad(PERIOD_DAY)}`; };
+function ensureRep() { if (!ui.rfrom || !ui.rto) { ui.rfrom = periodStart(todayStr()); ui.rto = shiftPeriod(ui.rfrom, 1); } }
+const periodLabel = (from, to) => `${fmtShort(from)} → ${fmtDate(addDays(to, -1))}`;
+
+// Répartit le prix d'un abonnement entre les services (un Combo se partage au prorata des prix d'un mois) et retire la part du groupe
+function allocate(s) {
+  const amount = Number(s.price) || 0, days = subDays(s), comps = COMPONENTS[s.service] || [s.service];
+  const w = comps.map((c) => (PRICES[c] || PRICES.netflix)[1]), tot = w.reduce((a, b) => a + b, 0);
+  let left = amount;
+  return comps.map((svc, i) => {
+    const share = i === comps.length - 1 ? left : Math.round(amount * w[i] / tot); left -= share;
+    const partner = PARTNER_SHARE[svc] ? Math.min(share, Math.round(PARTNER_SHARE[svc] * days / 30)) : 0;
+    return { svc, amount:share, partner, mine:share - partner };
+  });
+}
+// Abonnements commencés entre `from` (inclus) et `to` (exclu), revenus en francs, coût des comptes converti en francs
+function computeReport(from, to) {
+  const rows = subs.filter((s) => s.startDate >= from && s.startDate < to && s.startDate)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.clientName.localeCompare(b.clientName))
+    .map((s) => ({ s, paid:s.paid !== false, parts:allocate(s) }));
+  const g = {};
+  GROUPS.forEach((k) => { g[k] = { n:0, rev:0, partner:0, mine:0, unpaid:0, costUsd:0, accounts:0, missing:0 }; });
+  rows.forEach((r) => r.parts.forEach((p) => { const x = g[p.svc]; x.n++; if (r.paid) { x.rev += p.amount; x.partner += p.partner; x.mine += p.mine; } else x.unpaid += p.amount; }));
+  const standard = periodStart(from) === from && shiftPeriod(from, 1) === to;
+  const factor = standard ? 1 : diffDays(from, to) / 30;
+  accounts.forEach((a) => { const x = g[a.service]; if (!x) return; x.accounts++; if (Number(a.costUsd) > 0) x.costUsd += Number(a.costUsd) * factor; else x.missing++; });
+  const total = { n:rows.length, rev:0, partner:0, mine:0, unpaid:0, costUsd:0, costFc:0, profit:0 };
+  GROUPS.forEach((k) => {
+    const x = g[k]; x.costFc = Math.round(x.costUsd * rate); x.profit = x.mine - x.costFc;
+    ['rev', 'partner', 'mine', 'unpaid', 'costUsd', 'costFc', 'profit'].forEach((f) => { total[f] += x[f]; });
+  });
+  return { rows, g, total, from, to };
+}
+const signed = (n) => (n > 0 ? '+' : '') + money(n);
+
+function repCard(svc, x) {
+  const sv = SERVICES[svc], hasPartner = !!PARTNER_SHARE[svc];
+  return `<div class="sub" style="--svc:${sv.bg}">
+    <div class="top"><span class="badge" style="--svc:${sv.bg}">${GROUP_LABEL[svc]}</span><span class="pill ${x.profit >= 0 ? 'ok' : 'bad'}">${signed(x.profit)}</span></div>
+    <div class="kv" style="margin-top:10px"><span>${x.n} abonnement${x.n > 1 ? 's' : ''}</span><b>${money(x.rev)}</b></div>
+    ${hasPartner ? `<div class="kv"><span>Part du groupe</span><b>− ${money(x.partner)}</b></div><div class="kv"><span>Ma part</span><b>${money(x.mine)}</b></div>` : ''}
+    <div class="kv"><span>Coût ${x.accounts > 1 ? 'des ' + x.accounts + ' comptes' : 'du compte'} (${usd(x.costUsd)})</span><b>− ${money(x.costFc)}</b></div>
+    <div class="kv tot"><span>Bénéfice</span><b class="${x.profit >= 0 ? 'pos' : 'neg'}">${money(x.profit)}</b></div>
+    ${x.unpaid ? `<div class="warnline">Non payé, exclu : ${money(x.unpaid)}</div>` : ''}
+    ${x.missing ? `<div class="warnline">Coût en $ non renseigné pour ${x.missing} compte${x.missing > 1 ? 's' : ''} (Mes comptes, Modifier).</div>` : ''}
+    ${!x.accounts ? `<div class="warnline">Aucun compte enregistré : coût à 0.</div>` : ''}
+  </div>`;
+}
+function repRow(r) {
+  const s = r.s, sv = SERVICES[s.service] || SERVICES.netflix;
+  const partner = r.parts.reduce((a, p) => a + p.partner, 0);
+  return `<div class="client-line" data-act="open-client" data-id="${s.clientId}">
+    <div class="main"><strong>${esc(s.clientName)}</strong>
+      <small><span class="badge" style="--svc:${sv.bg}">${sv.label}</span> ${profLabel(s) ? esc(profLabel(s)) + ' · ' : ''}${durLabel(s)}${Number(s.bonusDays) > 0 ? ' + ' + Number(s.bonusDays) + ' j offerts' : ''}</small>
+      <small>Début ${fmtDate(s.startDate)} → fin ${fmtDate(s.endDate)}</small>${r.paid ? '' : '<small style="color:var(--bad)">Non payé</small>'}</div>
+    <div style="text-align:right"><b>${money(Number(s.price) || 0)}</b>${partner ? `<small style="display:block">Groupe ${money(partner)}</small>` : ''}</div></div>`;
+}
+function reportListHTML() {
+  ensureRep();
+  const R = computeReport(ui.rfrom, ui.rto);
+  const list = R.rows.filter((r) => (ui.rsvc === 'all' || r.s.service === ui.rsvc) && matchSub(r.s, ui.q));
+  if (!list.length) return `<div class="empty">${R.rows.length ? 'Aucun abonnement trouvé.' : 'Aucun abonnement commencé sur cette période.'}</div>`;
+  return list.map(repRow).join('');
+}
+function repHistoryHTML() {
+  const starts = subs.map((s) => s.startDate).filter(Boolean).sort();
+  if (!starts.length) return '';
+  const first = periodStart(starts[0]), out = [];
+  for (let p = periodStart(todayStr()); p >= first && out.length < 12; p = shiftPeriod(p, -1)) {
+    const to = shiftPeriod(p, 1), R = computeReport(p, to);
+    out.push(`<div class="client-line" data-act="rep-period" data-from="${p}"><div class="main"><strong>${periodLabel(p, to)}</strong><small>${R.total.n} abonnement${R.total.n > 1 ? 's' : ''} · revenu ${money(R.total.rev)}</small></div><b class="${R.total.profit >= 0 ? 'pos' : 'neg'}" style="color:${R.total.profit >= 0 ? 'var(--ok)' : 'var(--bad)'}">${signed(R.total.profit)}</b></div>`);
+  }
+  return `<h2>Mois précédents (bénéfice)</h2>${out.join('')}`;
+}
+function viewReports() {
+  ensureRep(); preloadXlsx();
+  const R = computeReport(ui.rfrom, ui.rto), t = R.total;
+  const chip = (k, label, dot) => `<button class="chip ${ui.rsvc === k ? 'on' : ''}" data-act="rsvc" data-v="${k}">${dot ? `<i style="background:${dot}"></i>` : ''}${label}</button>`;
+  return `<div class="pernav"><button class="iconbtn" data-act="rep-prev" aria-label="Période précédente"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="lbl">${periodLabel(ui.rfrom, ui.rto)}<small>${diffDays(ui.rfrom, ui.rto)} jours · 1 $ = ${rate.toLocaleString('fr-FR')} Fc</small></div>
+      <button class="iconbtn" data-act="rep-next" aria-label="Période suivante"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button></div>
+    <div class="two" style="margin-bottom:12px"><div class="field" style="margin:0"><label>Du</label><input type="date" data-r="from" value="${ui.rfrom}"></div><div class="field" style="margin:0"><label>Au (inclus)</label><input type="date" data-r="to" value="${addDays(ui.rto, -1)}"></div></div>
+    <div class="actions" style="margin-top:0"><button class="btn small" data-act="rep-now">Période en cours</button><button class="btn small primary" data-act="export-xlsx">Exporter en Excel</button></div>
+    ${GROUPS.map((k) => repCard(k, R.g[k])).join('')}
+    <div class="sub" style="--svc:var(--grad)"><div class="top"><span class="badge" style="--svc:var(--grad)">Total</span><span class="pill ${t.profit >= 0 ? 'ok' : 'bad'}">${usd(t.profit / rate)}</span></div>
+      <div class="kv" style="margin-top:10px"><span>${t.n} abonnement${t.n > 1 ? 's' : ''} clients</span><b>${money(t.rev)}</b></div>
+      ${t.partner ? `<div class="kv"><span>À reverser au groupe</span><b>− ${money(t.partner)}</b></div>` : ''}
+      <div class="kv"><span>Coût de tous les comptes (${usd(t.costUsd)})</span><b>− ${money(t.costFc)}</b></div>
+      <div class="kv tot"><span>Bénéfice net</span><b class="${t.profit >= 0 ? 'pos' : 'neg'}">${money(t.profit)}</b></div></div>
+    <h2>Abonnements de la période</h2>
+    <div class="chips">${chip('all', 'Tous')}${Object.entries(SERVICES).map(([k, v]) => chip(k, v.label.replace('Combo Netflix + Prime', 'Combo'), v.bg)).join('')}</div>
+    ${searchBox('Chercher un client ou un numéro')}<div id="clist">${reportListHTML()}</div>
+    ${repHistoryHTML()}
+    <p class="note">Une période commence le ${PERIOD_DAY} et finit le ${PERIOD_DAY - 1} du mois suivant. Un abonnement compte dans la période où il commence, à son prix payé. Un Combo est réparti entre Netflix et Prime Video.</p>`;
+}
+
+/* ----- Export Excel (.xlsx) ----- */
+let xlsxP = null;
+function preloadXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (xlsxP) return xlsxP;
+  xlsxP = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = () => res(window.XLSX);
+    sc.onerror = () => { xlsxP = null; sc.remove(); rej(new Error('Export indisponible : vérifie ta connexion')); };
+    document.head.appendChild(sc);
+  });
+  xlsxP.catch(() => {});
+  return xlsxP;
+}
+async function exportXlsx() {
+  ensureRep();
+  let X; try { X = window.XLSX || await preloadXlsx(); } catch (err) { return toast(err.message); }
+  const R = computeReport(ui.rfrom, ui.rto), t = R.total, last = addDays(ui.rto, -1);
+  const ld = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd); };
+  const wb = X.utils.book_new();
+  const finish = (ws, widths, dateCols, rowsN) => {
+    ws['!cols'] = widths.map((w) => ({ wch:w }));
+    if (dateCols) for (let r = 1; r <= rowsN; r++) dateCols.forEach((c) => { const cell = ws[X.utils.encode_cell({ r, c })]; if (cell && cell.t === 'd') cell.z = 'dd/mm/yyyy'; });
+    return ws;
+  };
+  // Résumé
+  const sum = [['Vision Streaming : rapport'], ['Période', `${fmtDate(ui.rfrom)} au ${fmtDate(last)}`], ['Taux', `1 $ = ${rate} Fc`], [],
+    ['Compte', 'Abonnements', 'Revenu clients (Fc)', 'Part du groupe (Fc)', 'Ma part (Fc)', 'Coût des comptes ($)', 'Coût des comptes (Fc)', 'Bénéfice (Fc)', 'Bénéfice ($)']];
+  GROUPS.forEach((k) => { const x = R.g[k]; sum.push([GROUP_LABEL[k], x.n, x.rev, x.partner, x.mine, r2(x.costUsd), x.costFc, x.profit, r2(x.profit / rate)]); });
+  sum.push(['TOTAL', t.n, t.rev, t.partner, t.mine, r2(t.costUsd), t.costFc, t.profit, r2(t.profit / rate)]);
+  if (t.unpaid) { sum.push([]); sum.push(['Non payé (exclu des revenus)', '', t.unpaid]); }
+  X.utils.book_append_sheet(wb, finish(X.utils.aoa_to_sheet(sum), [30, 13, 20, 20, 14, 20, 22, 16, 14]), 'Résumé');
+  // Listes d'abonnements
+  const head = ['Client', 'Téléphone', 'Service', 'Profil', 'Début', 'Durée (jours)', 'Jours offerts', 'Fin', 'Prix (Fc)', 'Part du groupe (Fc)', 'Ma part (Fc)', 'Moyen de paiement', 'Payé'];
+  const sheetFor = (rows, svc) => {
+    const aoa = [head]; let a = 0, b = 0, c = 0;
+    rows.forEach((r) => {
+      const s = r.s, cl = clientById(s.clientId) || {};
+      const parts = svc ? r.parts.filter((p) => p.svc === svc) : r.parts;
+      const price = parts.reduce((x, p) => x + p.amount, 0), partner = parts.reduce((x, p) => x + p.partner, 0);
+      a += price; b += partner; c += price - partner;
+      aoa.push([s.clientName, cl.phone || '', (SERVICES[s.service] || {}).label || s.service, profLabel(s), ld(s.startDate), subDays(s), Number(s.bonusDays) || 0, ld(s.endDate), price, partner, price - partner, s.method || '', r.paid ? 'Oui' : 'Non']);
+    });
+    aoa.push(['TOTAL', '', '', '', '', '', '', '', a, b, c]);
+    const ws = X.utils.aoa_to_sheet(aoa, { cellDates:true });
+    ws['!autofilter'] = { ref:X.utils.encode_range({ s:{ r:0, c:0 }, e:{ r:aoa.length - 2, c:head.length - 1 } }) };
+    return finish(ws, [26, 18, 22, 18, 12, 13, 13, 12, 12, 18, 13, 18, 7], [4, 7], aoa.length - 1);
+  };
+  X.utils.book_append_sheet(wb, sheetFor(R.rows, null), 'Abonnements');
+  GROUPS.forEach((k) => X.utils.book_append_sheet(wb, sheetFor(R.rows.filter((r) => r.parts.some((p) => p.svc === k)), k), GROUP_LABEL[k]));
+  // Mois par mois
+  const starts = subs.map((s) => s.startDate).filter(Boolean).sort();
+  if (starts.length) {
+    const aoa = [['Période', 'Abonnements', 'Revenu (Fc)', 'Part du groupe (Fc)', 'Coût des comptes (Fc)', 'Bénéfice Netflix (Fc)', 'Bénéfice Prime Video (Fc)', 'Bénéfice Crunchyroll (Fc)', 'Bénéfice total (Fc)', 'Bénéfice total ($)']];
+    for (let p = periodStart(starts[0]); p <= periodStart(todayStr()); p = shiftPeriod(p, 1)) {
+      const to = shiftPeriod(p, 1), M = computeReport(p, to);
+      aoa.push([periodLabel(p, to), M.total.n, M.total.rev, M.total.partner, M.total.costFc, M.g.netflix.profit, M.g.prime.profit, M.g.crunchyroll.profit, M.total.profit, r2(M.total.profit / rate)]);
+    }
+    X.utils.book_append_sheet(wb, finish(X.utils.aoa_to_sheet(aoa), [28, 13, 15, 19, 20, 20, 24, 24, 19, 17]), 'Par mois');
+  }
+  const out = X.write(wb, { bookType:'xlsx', type:'array' });
+  const name = `Vision_rapport_${ui.rfrom}_${last}.xlsx`;
+  const file = new File([out], name, { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  if (navigator.canShare && navigator.canShare({ files:[file] })) {
+    try { await navigator.share({ files:[file], title:name }); return; } catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(file), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  toast('Fichier Excel prêt ✓');
 }
 
 /* ============ Feuille d'abonnement ============ */
@@ -1027,9 +1222,10 @@ document.addEventListener('click', async (e) => {
       const batch = db.batch(); let n = 0;
       seedMissing().forEach((sd) => {
         const a = accounts.find((x) => seedKey(x.name) === seedKey(sd.name));
-        batch.update(db.doc('accounts/' + a.id), { endDate:sd.endDate, ...(a.note ? {} : { note:sd.note }) }); n++;
+        const upd = {}; if (!a.endDate) upd.endDate = sd.endDate; if (!a.note && sd.note) upd.note = sd.note; if (sd.costUsd && !a.costUsd) upd.costUsd = sd.costUsd;
+        batch.update(db.doc('accounts/' + a.id), upd); n++;
       });
-      if (n) { await batch.commit(); toast(`${n} date${n > 1 ? 's' : ''} remplie${n > 1 ? 's' : ''} ✓`); }
+      if (n) { await batch.commit(); toast(`${n} compte${n > 1 ? 's' : ''} complété${n > 1 ? 's' : ''} ✓`); }
       break;
     }
     case 'pick-method': form.method = v; showSheet(subFormHTML()); break;
@@ -1050,6 +1246,13 @@ document.addEventListener('click', async (e) => {
     }
     case 'close-sheet': closeSheet(); break;
     case 'enable-notif': enableNotifications(); break;
+    case 'save-rate': { const r = Math.round(Number($('#rate').value)); if (!(r > 0)) { toast('Taux invalide'); break; } await db.doc('settings/app').set({ rate:r }, { merge:true }); toast('Taux enregistré ✓'); break; }
+    case 'rsvc': ui.rsvc = v; render(); break;
+    case 'rep-prev': ensureRep(); ui.rto = ui.rfrom; ui.rfrom = shiftPeriod(periodStart(ui.rfrom), -1); ui.rto = shiftPeriod(ui.rfrom, 1); render(); break;
+    case 'rep-next': ensureRep(); ui.rfrom = shiftPeriod(periodStart(ui.rfrom), 1); ui.rto = shiftPeriod(ui.rfrom, 1); render(); break;
+    case 'rep-now': ui.rfrom = periodStart(todayStr()); ui.rto = shiftPeriod(ui.rfrom, 1); render(); break;
+    case 'rep-period': ui.rfrom = el.dataset.from; ui.rto = shiftPeriod(ui.rfrom, 1); render(); window.scrollTo(0, 0); break;
+    case 'export-xlsx': exportXlsx(); break;
     case 'save-tpl': await db.doc('settings/app').set({ template: $('#tpl').value }, { merge:true }); toast('Message enregistré ✓'); break;
     case 'reset-tpl': await db.doc('settings/app').set({ template: DEFAULT_TEMPLATE }, { merge:true }); toast('Message réinitialisé'); break;
     case 'logout': auth.signOut(); break;
@@ -1072,11 +1275,17 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
+  if (t.dataset.r && ui.tab === 'reports') {
+    if (!t.value) return;
+    if (t.dataset.r === 'from') { ui.rfrom = t.value; if (ui.rto <= ui.rfrom) ui.rto = addDays(ui.rfrom, 1); }
+    else { ui.rto = addDays(t.value, 1); if (ui.rto <= ui.rfrom) ui.rfrom = addDays(ui.rto, -1); }
+    render(); return;
+  }
   if (t.id === 'vcf') { const fl = [...t.files]; t.value = ''; if (fl.length) importVcf(fl); return; }
   if (t.dataset.f === 'start' && form) { form.start = t.value; refreshDerived(); }
   if (t.dataset.a && aform) { aform[t.dataset.a] = t.value; const h = $('#accNext'); if (h) h.textContent = accHint(aform); }
 });
-Object.assign(LISTS, { subs:subsListHTML, clients:clientListHTML, profiles:profilesListHTML, accounts:accountsListHTML });
+Object.assign(LISTS, { subs:subsListHTML, clients:clientListHTML, profiles:profilesListHTML, accounts:accountsListHTML, reports:reportListHTML });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
 /* ============ Connexion et données ============ */
@@ -1093,7 +1302,7 @@ function start() {
   unsubs.push(db.collection('subscriptions').onSnapshot((s) => { subs = s.docs.map((d) => ({ id:d.id, ...d.data() })); loaded.s = true; render(); }, onErr));
   unsubs.push(db.collection('accounts').onSnapshot((s) => { accounts = s.docs.map((d) => ({ id:d.id, ...d.data() })); render(); }, onErr));
   unsubs.push(db.doc('settings/profiles').onSnapshot((d) => { profileNames = (d.exists && d.data().names) || {}; render(); }, onErr));
-  unsubs.push(db.doc('settings/app').onSnapshot((d) => { template = (d.exists && d.data().template) || DEFAULT_TEMPLATE; if (ui.tab === 'settings' && document.activeElement.id !== 'tpl') render(); }, onErr));
+  unsubs.push(db.doc('settings/app').onSnapshot((d) => { template = (d.exists && d.data().template) || DEFAULT_TEMPLATE; rate = (d.exists && Number(d.data().rate) > 0) ? Number(d.data().rate) : DEFAULT_RATE; if ((ui.tab === 'settings' && document.activeElement.id !== 'tpl' && document.activeElement.id !== 'rate') || ui.tab === 'reports') render(); }, onErr));
 }
 function stop() { unsubs.forEach((u) => u()); unsubs = []; clients = []; subs = []; accounts = []; profileNames = {}; loaded = { c:false, s:false }; pendingAuto.clear(); ui.detail = null; closeSheet(); }
 
