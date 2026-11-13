@@ -205,6 +205,7 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
 .warnline{font-size:13px;color:var(--warn);margin-top:6px}
 #toast{position:fixed;left:50%;bottom:calc(96px + var(--sab));transform:translateX(-50%);background:#fff;color:#0b0d14;padding:11px 18px;border-radius:99px;font-weight:700;font-size:14.5px;z-index:80;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
+.offline{position:fixed;top:0;left:0;right:0;z-index:90;background:#f5a623;color:#1b1200;text-align:center;font-size:13px;font-weight:700;padding:calc(6px + env(safe-area-inset-top)) 12px 6px}
 </style>
 </head>
 <body>
@@ -242,6 +243,7 @@ h2{font-size:15px;font-weight:700;color:var(--mut);margin:24px 0 10px}
   <div id="sheet" class="sheetwrap" hidden><div class="backdrop" data-act="close-sheet"></div><div class="sheet" id="sheetBody"></div></div>
 </div>
 <input type="file" id="vcf" accept=".vcf,text/vcard,text/x-vcard,text/directory" multiple hidden>
+<div id="offline" class="offline" hidden>📴 Hors connexion : tu peux continuer, tout sera synchronisé au retour du réseau</div>
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -271,8 +273,8 @@ const METHODS = ['Illicocash','Orange Money','Airtel Money','Cash','Autre'];
 const DEFAULT_TEMPLATE = "Bonjour {nom} 👋\nVotre abonnement {service} chez Vision Streaming {quand} (le {date}).\nSouhaitez-vous le renouveler ? Merci !";
 
 const SHORT = { netflix:'Netflix', prime:'Prime Video', crunchyroll:'Crunchyroll' };
-/* Rapports : période du 24 au 24, taux dollar/franc, part reversée à un groupe */
-const PERIOD_DAY = 24;       // une période va du 24 d'un mois au 23 du mois suivant (le 24 suivant ouvre la période d'après)
+/* Rapports : période du 25 au 24, taux dollar/franc, part reversée à un groupe */
+const PERIOD_DAY = 25;       // une période va du 25 d'un mois au 24 (inclus) du mois suivant ; le 25 suivant ouvre la période d'après
 const DEFAULT_RATE = 2300;   // 1 $ = 2300 Fc (modifiable dans Réglages)
 const GROUPS = ['netflix', 'prime', 'crunchyroll'];
 const GROUP_LABEL = { netflix:'Netflix groupé', prime:'Prime Video', crunchyroll:'Crunchyroll' };
@@ -305,6 +307,8 @@ const COMPONENTS = { netflix:['netflix'], prime:['prime'], crunchyroll:['crunchy
 firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// Mode hors ligne : les données sont gardées sur l'appareil, les modifications faites sans réseau partent toutes seules au retour de la connexion
+db.enablePersistence({ synchronizeTabs:true }).catch((err) => console.warn('Mode hors ligne limité :', err.code || err));
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
 let messaging = null;
 try { if (firebase.messaging.isSupported()) messaging = firebase.messaging(); } catch (e) { console.warn('Messaging indisponible', e); }
@@ -321,6 +325,21 @@ const fmtDate = (s) => new Date(toUTC(s)).toLocaleDateString('fr-FR', { day:'num
 const money = (n) => (Number(n) || 0).toLocaleString('fr-FR') + ' Fc';
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 const standalone = () => navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+
+/* Hors ligne : on n'attend pas la confirmation du serveur (elle n'arrive qu'au retour du réseau) */
+function sync(p) {
+  let timer, late = false;
+  p.then(() => clearTimeout(timer), (err) => { clearTimeout(timer); console.error(err); if (late) toast('Une modification n\'a pas pu être envoyée : ' + (err.message || err), 6000); });
+  const wait = new Promise((res) => { timer = setTimeout(() => { late = true; setTimeout(() => toast('📴 Enregistré sur l\'appareil : envoi dès que la connexion revient', 4500), 80); res(); }, navigator.onLine ? 3000 : 0); });
+  return Promise.race([p, wait]);
+}
+function netState() { const el = $('#offline'); if (el) el.hidden = navigator.onLine; }
+window.addEventListener('offline', netState);
+window.addEventListener('online', () => {
+  netState(); toast('Connexion rétablie, synchronisation…');
+  db.waitForPendingWrites().then(() => toast('Données synchronisées ✓')).catch(() => {});
+});
+if ('serviceWorker' in navigator) window.addEventListener('load', () => { navigator.serviceWorker.register('firebase-messaging-sw.js').catch((e) => console.warn('Cache hors ligne indisponible', e)); });
 
 let toastTimer;
 function toast(msg, ms = 2600) {
@@ -673,7 +692,7 @@ function openProfileSheet(id) {
 async function savePname(id, reset) {
   const name = reset ? '' : ($('#pname').value || '').trim();
   const val = !name || name === defaultName(id) ? firebase.firestore.FieldValue.delete() : name;
-  await db.doc('settings/profiles').set({ names: { [id]: val } }, { merge:true });
+  await sync(db.doc('settings/profiles').set({ names: { [id]: val } }, { merge:true }));
   closeSheet(); toast('Nom enregistré ✓');
 }
 
@@ -729,8 +748,8 @@ async function saveAcc() {
   f.saving = true;
   const data = { name, service:f.service, endDate:f.endDate || '', cycleDays:cycle, note:(f.note || '').trim(), payUrl:(f.payUrl || '').trim(), costUsd:(Number(String(f.costUsd).replace(',', '.')) > 0 ? Number(String(f.costUsd).replace(',', '.')) : null) };
   try {
-    if (f.id) await db.doc('accounts/' + f.id).update(data);
-    else await db.collection('accounts').add({ ...data, createdAt:TS() });
+    if (f.id) await sync(db.doc('accounts/' + f.id).update(data));
+    else await sync(db.collection('accounts').doc().set({ ...data, createdAt:TS() }));
     closeSheet(); toast('Compte enregistré ✓');
   } catch (err) { console.error(err); f.saving = false; toast('Erreur : ' + (err.message || err)); }
 }
@@ -768,8 +787,9 @@ function viewSettings() {
     <div class="panel"><h3>Compte</h3><p>${esc(auth.currentUser.email)}</p><button class="btn danger" data-act="logout">Se déconnecter</button></div>`;
 }
 
-/* ============ Rapports (périodes du 24 au 24) ============ */
+/* ============ Rapports (périodes du 25 au 24) ============ */
 const usd = (n) => '$' + (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits:2 });
+const usdS = (n) => (n < 0 ? '-' : '') + usd(Math.abs(n));
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const periodStart = (d) => { let [y, m, dd] = d.split('-').map(Number); if (dd < PERIOD_DAY) { m--; if (m < 1) { m = 12; y--; } } return `${y}-${pad(m)}-${pad(PERIOD_DAY)}`; };
 const shiftPeriod = (start, k) => { let [y, m] = start.split('-').map(Number); m += k; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return `${y}-${pad(m)}-${pad(PERIOD_DAY)}`; };
@@ -894,12 +914,34 @@ async function exportXlsx() {
     if (dateCols) for (let r = 1; r <= rowsN; r++) dateCols.forEach((c) => { const cell = ws[X.utils.encode_cell({ r, c })]; if (cell && cell.t === 'd') cell.z = 'dd/mm/yyyy'; });
     return ws;
   };
+  const days = diffDays(ui.rfrom, ui.rto), nb = (n) => `${n} abonnement${n > 1 ? 's' : ''}`;
+  // Petit texte explicatif placé sous chaque tableau
+  const summaryLines = (title, x, label, withSplit) => {
+    const L = [[title], [`Période : du ${fmtDate(ui.rfrom)} au ${fmtDate(last)} (${days} jours).`]];
+    L.push([withSplit
+      ? `${nb(x.n)} ${x.n > 1 ? 'ont commencé' : 'a commencé'} pendant cette période : Netflix ${R.g.netflix.n}, Prime Video ${R.g.prime.n}, Crunchyroll ${R.g.crunchyroll.n} (un Combo compte à la fois pour Netflix et pour Prime Video).`
+      : `${nb(x.n)} ${label} ${x.n > 1 ? 'ont commencé' : 'a commencé'} pendant cette période.`]);
+    L.push([`Revenu encaissé : ${money(x.rev)} (seuls les abonnements payés sont comptés).`]);
+    if (x.partner) L.push([`Part à reverser au groupe : ${money(x.partner)}. Il te reste donc ${money(x.mine)}.`]);
+    L.push([`Coût des comptes : ${usd(x.costUsd)}, soit ${money(x.costFc)} au taux de 1 $ = ${rate} Fc.`]);
+    L.push([`Bénéfice net : ${money(x.profit)} (soit ${usdS(x.profit / rate)}), c'est-à-dire ${x.partner ? 'ta part' : 'le revenu'} moins le coût des comptes.`]);
+    if (x.unpaid) L.push([`Non payé : ${money(x.unpaid)}. Cette somme n'est pas dans le revenu ci-dessus, mais elle est incluse dans la ligne TOTAL du tableau.`]);
+    if (x.missing) L.push([`Attention : le coût en $ n'est pas renseigné pour ${x.missing} compte${x.missing > 1 ? 's' : ''} (Mes comptes, Modifier), le bénéfice est donc surestimé.`]);
+    return L;
+  };
+  const allMissing = GROUPS.reduce((a, k) => a + R.g[k].missing, 0);
+  const totalX = { ...t, missing:allMissing };
   // Résumé
   const sum = [['Vision Streaming : rapport'], ['Période', `${fmtDate(ui.rfrom)} au ${fmtDate(last)}`], ['Taux', `1 $ = ${rate} Fc`], [],
     ['Compte', 'Abonnements', 'Revenu clients (Fc)', 'Part du groupe (Fc)', 'Ma part (Fc)', 'Coût des comptes ($)', 'Coût des comptes (Fc)', 'Bénéfice (Fc)', 'Bénéfice ($)']];
   GROUPS.forEach((k) => { const x = R.g[k]; sum.push([GROUP_LABEL[k], x.n, x.rev, x.partner, x.mine, r2(x.costUsd), x.costFc, x.profit, r2(x.profit / rate)]); });
   sum.push(['TOTAL', t.n, t.rev, t.partner, t.mine, r2(t.costUsd), t.costFc, t.profit, r2(t.profit / rate)]);
   if (t.unpaid) { sum.push([]); sum.push(['Non payé (exclu des revenus)', '', t.unpaid]); }
+  sum.push([], ...summaryLines('RÉSUMÉ DE LA PÉRIODE', totalX, '', true));
+  sum.push([], ['Comment lire ce tableau'],
+    ['Revenu clients : somme des abonnements payés qui ont commencé dans la période.'],
+    ['Ma part : revenu clients moins la part reversée au groupe.'],
+    ['Bénéfice : ma part moins le coût des comptes (payés en $, convertis en Fc au taux indiqué).']);
   X.utils.book_append_sheet(wb, finish(X.utils.aoa_to_sheet(sum), [30, 13, 20, 20, 14, 20, 22, 16, 14]), 'Résumé');
   // Listes d'abonnements
   const head = ['Client', 'Téléphone', 'Service', 'Profil', 'Début', 'Durée (jours)', 'Jours offerts', 'Fin', 'Prix (Fc)', 'Part du groupe (Fc)', 'Ma part (Fc)', 'Moyen de paiement', 'Payé'];
@@ -913,9 +955,11 @@ async function exportXlsx() {
       aoa.push([s.clientName, cl.phone || '', (SERVICES[s.service] || {}).label || s.service, profLabel(s), ld(s.startDate), subDays(s), Number(s.bonusDays) || 0, ld(s.endDate), price, partner, price - partner, s.method || '', r.paid ? 'Oui' : 'Non']);
     });
     aoa.push(['TOTAL', '', '', '', '', '', '', '', a, b, c]);
+    const dataRows = aoa.length;
+    aoa.push([], ...(svc ? summaryLines(`RÉSUMÉ ${GROUP_LABEL[svc].toUpperCase()}`, R.g[svc], SHORT[svc], false) : summaryLines('RÉSUMÉ DE LA PÉRIODE', totalX, '', true)));
     const ws = X.utils.aoa_to_sheet(aoa, { cellDates:true });
-    ws['!autofilter'] = { ref:X.utils.encode_range({ s:{ r:0, c:0 }, e:{ r:aoa.length - 2, c:head.length - 1 } }) };
-    return finish(ws, [26, 18, 22, 18, 12, 13, 13, 12, 12, 18, 13, 18, 7], [4, 7], aoa.length - 1);
+    ws['!autofilter'] = { ref:X.utils.encode_range({ s:{ r:0, c:0 }, e:{ r:dataRows - 2, c:head.length - 1 } }) };
+    return finish(ws, [26, 18, 22, 18, 12, 13, 13, 12, 12, 18, 13, 18, 7], [4, 7], dataRows - 1);
   };
   X.utils.book_append_sheet(wb, sheetFor(R.rows, null), 'Abonnements');
   GROUPS.forEach((k) => X.utils.book_append_sheet(wb, sheetFor(R.rows.filter((r) => r.parts.some((p) => p.svc === k)), k), GROUP_LABEL[k]));
@@ -927,6 +971,9 @@ async function exportXlsx() {
       const to = shiftPeriod(p, 1), M = computeReport(p, to);
       aoa.push([periodLabel(p, to), M.total.n, M.total.rev, M.total.partner, M.total.costFc, M.g.netflix.profit, M.g.prime.profit, M.g.crunchyroll.profit, M.total.profit, r2(M.total.profit / rate)]);
     }
+    const data = aoa.slice(1), tot = data.reduce((a, r) => a + r[8], 0), best = data.reduce((a, r) => (r[8] > a[8] ? r : a), data[0]), worst = data.reduce((a, r) => (r[8] < a[8] ? r : a), data[0]);
+    aoa.push([], ['RÉSUMÉ'], [`${data.length} période${data.length > 1 ? 's' : ''} suivie${data.length > 1 ? 's' : ''} (chaque période va du ${PERIOD_DAY} au ${PERIOD_DAY - 1} du mois suivant).`],
+      [`Bénéfice total sur l'ensemble : ${money(tot)} (soit ${usdS(tot / rate)}).`], [`Meilleure période : ${best[0]} avec ${money(best[8])}.`], [`Période la plus faible : ${worst[0]} avec ${money(worst[8])}.`]);
     X.utils.book_append_sheet(wb, finish(X.utils.aoa_to_sheet(aoa), [28, 13, 15, 19, 20, 20, 24, 24, 19, 17]), 'Par mois');
   }
   const out = X.write(wb, { bookType:'xlsx', type:'array' });
@@ -1067,15 +1114,16 @@ async function saveSub() {
   try {
     let clientId = f.clientId, clientName;
     if (clientId === '__new') {
-      const ref = await db.collection('clients').add({ name:newName, phone:newPhone, note:'', createdAt:TS() });
+      const ref = db.collection('clients').doc();
       clientId = ref.id; clientName = newName;
+      await sync(ref.set({ name:newName, phone:newPhone, note:'', createdAt:TS() }));
     } else clientName = clientById(clientId).name;
     const profiles = {};
     COMPONENTS[f.service].forEach((svc) => { if (f.profiles[svc]) profiles[svc] = f.profiles[svc]; });
     const data = { clientId, clientName, service:f.service, days:f.days, bonusDays:f.bonus || 0, months:Math.round(f.days / 30 * 100) / 100, price, method:f.method, paid:!!f.paid,
       startDate:f.start, endDate:formEnd(f), profiles, note:(f.note || '').trim() };
-    if (f.id) await db.doc('subscriptions/' + f.id).update(data);
-    else await db.collection('subscriptions').add({ ...data, archived:false, createdAt:TS() });
+    if (f.id) await sync(db.doc('subscriptions/' + f.id).update(data));
+    else await sync(db.collection('subscriptions').doc().set({ ...data, archived:false, createdAt:TS() }));
     closeSheet(); toast('Abonnement enregistré ✓');
   } catch (err) { console.error(err); f.saving = false; toast('Erreur : ' + (err.message || err)); }
 }
@@ -1092,7 +1140,7 @@ async function saveBonus() {
   const n = Math.round(Number(f.n));
   if (!(n >= 1)) return toast('Indique le nombre de jours');
   try {
-    await db.doc('subscriptions/' + sb.id).update({ bonusDays:(Number(sb.bonusDays) || 0) + n, endDate:addDays(sb.endDate, n) });
+    await sync(db.doc('subscriptions/' + sb.id).update({ bonusDays:(Number(sb.bonusDays) || 0) + n, endDate:addDays(sb.endDate, n) }));
     closeSheet(); toast(`${n} jour${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} : fin le ${fmtDate(addDays(sb.endDate, n))} ✓`, 4000);
   } catch (err) { console.error(err); toast('Erreur : ' + (err.message || err)); }
 }
@@ -1131,8 +1179,8 @@ async function saveClient() {
       const batch = db.batch();
       batch.update(db.doc('clients/' + f.id), { name, phone, note:f.note.trim() });
       subs.filter((s) => s.clientId === f.id && s.clientName !== name).forEach((s) => batch.update(db.doc('subscriptions/' + s.id), { clientName:name }));
-      await batch.commit();
-    } else await db.collection('clients').add({ name, phone, note:f.note.trim(), createdAt:TS() });
+      await sync(batch.commit());
+    } else await sync(db.collection('clients').doc().set({ name, phone, note:f.note.trim(), createdAt:TS() }));
     closeSheet(); toast('Client enregistré ✓');
   } catch (err) { console.error(err); f.saving = false; toast('Erreur : ' + (err.message || err)); }
 }
@@ -1174,7 +1222,7 @@ document.addEventListener('click', async (e) => {
     case 'renew-sub': if (sub) openSubForm({ clientId:sub.clientId, service:sub.service, days:subDays(sub), method:sub.method, note:sub.note, profiles:hasProf(sub) ? sub.profiles : (sub.freedProfiles || {}), start: sub._left > 0 ? sub.endDate : todayStr() }); break;
     case 'bonus-sub': if (sub) openBonus(sub); break;
     case 'save-bonus': saveBonus(); break;
-    case 'archive-sub': if (sub) { await db.doc('subscriptions/' + sid).update({ archived:true, ...(hasProf(sub) ? { profiles:{}, freedProfiles:{ ...sub.profiles }, freedAt:todayStr() } : {}) }); toast(hasProf(sub) ? 'Profil libéré ✓' : 'Archivé (visible dans l\'historique)'); } break;
+    case 'archive-sub': if (sub) { await sync(db.doc('subscriptions/' + sid).update({ archived:true, ...(hasProf(sub) ? { profiles:{}, freedProfiles:{ ...sub.profiles }, freedAt:todayStr() } : {}) })); toast(hasProf(sub) ? 'Profil libéré ✓' : 'Archivé (visible dans l\'historique)'); } break;
     case 'fab': if (ui.tab === 'accounts') openAccForm(null); else openSubForm({ clientId: ui.detail || '' }); break;
     case 'pick-service': form.service = v; form.priceTouched = false; form.price = priceFor(v, form.days); autoPick(form.profiles); showSheet(subFormHTML()); break;
     case 'pick-days':
@@ -1192,7 +1240,7 @@ document.addEventListener('click', async (e) => {
       Object.entries(sub.profiles || {}).forEach(([svc, pid]) => { if (pid === id) upd['profiles.' + svc] = firebase.firestore.FieldValue.delete(); });
       if (!Object.keys(upd).length) break;
       if (!confirm(`Retirer ${sub.clientName} du profil ${profName(id)} ? Son abonnement reste actif.`)) break;
-      await db.doc('subscriptions/' + sid).update(upd); closeSheet(); toast(`${sub.clientName} retiré de ${profName(id)} ✓`);
+      await sync(db.doc('subscriptions/' + sid).update(upd)); closeSheet(); toast(`${sub.clientName} retiré de ${profName(id)} ✓`);
       break;
     }
     case 'pick-client': form.clientId = id; autoPick(form.profiles); showSheet(subFormHTML()); break;
@@ -1206,16 +1254,16 @@ document.addEventListener('click', async (e) => {
     case 'new-acc': openAccForm(null); break;
     case 'edit-acc': openAccForm(accounts.find((a) => a.id === id)); break;
     case 'save-acc': saveAcc(); break;
-    case 'del-acc': if (confirm('Supprimer ce compte ?')) { await db.doc('accounts/' + id).delete(); closeSheet(); toast('Compte supprimé'); } break;
+    case 'del-acc': if (confirm('Supprimer ce compte ?')) { await sync(db.doc('accounts/' + id).delete()); closeSheet(); toast('Compte supprimé'); } break;
     case 'renew-acc': {
       const a = accounts.find((x) => x.id === id), nx = a && accNext(a);
-      if (a && nx && confirm(`Tu as payé ${a.name} ? La nouvelle fin sera le ${fmtDate(nx)}.`)) { await db.doc('accounts/' + id).update({ endDate:nx }); toast('Renouvelé jusqu\'au ' + fmtDate(nx) + ' ✓'); }
+      if (a && nx && confirm(`Tu as payé ${a.name} ? La nouvelle fin sera le ${fmtDate(nx)}.`)) { await sync(db.doc('accounts/' + id).update({ endDate:nx })); toast('Renouvelé jusqu\'au ' + fmtDate(nx) + ' ✓'); }
       break;
     }
     case 'seed-acc': {
       const batch = db.batch();
       ACCOUNT_SEED.forEach((sd) => batch.set(db.collection('accounts').doc(), { ...sd, cycleDays:30, createdAt:TS() }));
-      await batch.commit(); toast('5 comptes créés avec leurs dates ✓');
+      await sync(batch.commit()); toast('5 comptes créés avec leurs dates ✓');
       break;
     }
     case 'fill-acc': {
@@ -1225,14 +1273,14 @@ document.addEventListener('click', async (e) => {
         const upd = {}; if (!a.endDate) upd.endDate = sd.endDate; if (!a.note && sd.note) upd.note = sd.note; if (sd.costUsd && !a.costUsd) upd.costUsd = sd.costUsd;
         batch.update(db.doc('accounts/' + a.id), upd); n++;
       });
-      if (n) { await batch.commit(); toast(`${n} compte${n > 1 ? 's' : ''} complété${n > 1 ? 's' : ''} ✓`); }
+      if (n) { await sync(batch.commit()); toast(`${n} compte${n > 1 ? 's' : ''} complété${n > 1 ? 's' : ''} ✓`); }
       break;
     }
     case 'pick-method': form.method = v; showSheet(subFormHTML()); break;
     case 'save-sub': saveSub(); break;
     case 'save-client': saveClient(); break;
     case 'del-sub':
-      if (confirm('Supprimer définitivement cet abonnement ?')) { await db.doc('subscriptions/' + sid).delete(); closeSheet(); toast('Supprimé'); }
+      if (confirm('Supprimer définitivement cet abonnement ?')) { await sync(db.doc('subscriptions/' + sid).delete()); closeSheet(); toast('Supprimé'); }
       break;
     case 'del-client': {
       const c = clientById(id);
@@ -1240,21 +1288,21 @@ document.addEventListener('click', async (e) => {
         const batch = db.batch();
         subs.filter((s) => s.clientId === id).forEach((s) => batch.delete(db.doc('subscriptions/' + s.id)));
         batch.delete(db.doc('clients/' + id));
-        await batch.commit(); ui.detail = null; closeSheet(); toast('Client supprimé');
+        await sync(batch.commit()); ui.detail = null; closeSheet(); toast('Client supprimé');
       }
       break;
     }
     case 'close-sheet': closeSheet(); break;
     case 'enable-notif': enableNotifications(); break;
-    case 'save-rate': { const r = Math.round(Number($('#rate').value)); if (!(r > 0)) { toast('Taux invalide'); break; } await db.doc('settings/app').set({ rate:r }, { merge:true }); toast('Taux enregistré ✓'); break; }
+    case 'save-rate': { const r = Math.round(Number($('#rate').value)); if (!(r > 0)) { toast('Taux invalide'); break; } await sync(db.doc('settings/app').set({ rate:r }, { merge:true })); toast('Taux enregistré ✓'); break; }
     case 'rsvc': ui.rsvc = v; render(); break;
     case 'rep-prev': ensureRep(); ui.rto = ui.rfrom; ui.rfrom = shiftPeriod(periodStart(ui.rfrom), -1); ui.rto = shiftPeriod(ui.rfrom, 1); render(); break;
     case 'rep-next': ensureRep(); ui.rfrom = shiftPeriod(periodStart(ui.rfrom), 1); ui.rto = shiftPeriod(ui.rfrom, 1); render(); break;
     case 'rep-now': ui.rfrom = periodStart(todayStr()); ui.rto = shiftPeriod(ui.rfrom, 1); render(); break;
     case 'rep-period': ui.rfrom = el.dataset.from; ui.rto = shiftPeriod(ui.rfrom, 1); render(); window.scrollTo(0, 0); break;
     case 'export-xlsx': exportXlsx(); break;
-    case 'save-tpl': await db.doc('settings/app').set({ template: $('#tpl').value }, { merge:true }); toast('Message enregistré ✓'); break;
-    case 'reset-tpl': await db.doc('settings/app').set({ template: DEFAULT_TEMPLATE }, { merge:true }); toast('Message réinitialisé'); break;
+    case 'save-tpl': await sync(db.doc('settings/app').set({ template: $('#tpl').value }, { merge:true })); toast('Message enregistré ✓'); break;
+    case 'reset-tpl': await sync(db.doc('settings/app').set({ template: DEFAULT_TEMPLATE }, { merge:true })); toast('Message réinitialisé'); break;
     case 'logout': auth.signOut(); break;
   }
 });
@@ -1306,6 +1354,7 @@ function start() {
 }
 function stop() { unsubs.forEach((u) => u()); unsubs = []; clients = []; subs = []; accounts = []; profileNames = {}; loaded = { c:false, s:false }; pendingAuto.clear(); ui.detail = null; closeSheet(); }
 
+netState();
 auth.onAuthStateChanged((u) => {
   $('#boot').hidden = true;
   $('#login').hidden = !!u; $('#app').hidden = !u;
